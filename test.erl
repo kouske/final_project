@@ -18,21 +18,54 @@ start(Neighbors, MyMac) ->
 %% 2. wait for receipt of messages from ALL edges.
 %% - if a YES was sent from both sides of an edge -> this edge is a core.
 %%
-%% edges will be identified via the MAC sddress of the connected node on the other side of the edge.
+%% Edges will be identified via the MAC sddress of the connected node on the other side of the edge.
+%%
+%% Inputs :
+%% Neighbors - an array of {MAC, RSSI} sorted by RSSI (lowest first)
+%% MyMac - the MAC address of the node running the code
+%% FragID - the ID of the fragment of which the node running the code is part
+%% FragLevel - the level of the fragment of which the node running the code is part
 %%------------------------------------------------------%%
 find_cores(Neighbors, MyMac, FragID, FragLevel) -> 
-	Best_Mac = send_core_msgs(Neighbors, MyMac),
-	Core_status = receive_core_msgs(Best_Mac),
-	if Core_status == core_found -> CORE = Best_Mac;
+	Best_Mac = snd_core_msgs(Neighbors, MyMac), %send messages to all neighbors
+	Core_status = receive_core_msgs(Best_Mac), %receive and precess messages from neighbors
+	if Core_status == core_found -> CORE = Best_Mac; %if a core branch was found, set CORE value
 	   true -> CORE = 0 end,
+	New_Frag_ID = math:min(Best_Mac, MyMac), %the fragment ID has to be common, min MAC address of the fragment will give the same result without message passing
 	broadcast().
 
-send_core_msgs(Neighbors, MyMac) ->
+%%------------------------------------------------------%%
+%% A function for sending core finding messages to all neighbors
+%% 
+%% Inputs :
+%% Neighbors - an array of {MAC, RSSI} sorted by RSSI (lowest first)
+%% MyMac - the MAC address of the node running the code
+%%
+%% Outpust :
+%% Best_Mac - the MAC address of the neighbor with the lowers RSSI
+%%------------------------------------------------------%%
+snd_core_msgs(Neighbors, MyMac) ->
 	{Best_Mac,_} = hd(Neighbors), %list is ordered, the first entry is the lowest RSSI
 	{find_core, MyMac, yes} ! Best_Mac, %send "yes" to the best path
 	[{find_core, MyMac, no} ! Dest_Mac || {Dest_Mac,_} <- Neighbors--[hd(Neighbors)]], %send "no" to all the rest.
 	Best_Mac.
 
+%%------------------------------------------------------%%
+%% A function for receiving and precessing the core finding messages sent by neighbors
+%% - if a YES message was received on the same branch the node sent a YES messages, thet branch is the core
+%%
+%% Inputs :
+%% Best_Mac - the MAC address of the neighbor with the lowest RSSI
+%%
+%% Outputs :
+%% Core_status - the status of the search for a core
+%% - if a core branch was found, a "core_found" atom will be returned
+%% - if a core branch was not found, a "core_not_found" atom will be returned
+%%
+%% notes :
+%% - the core can only be on the Best_Mac branch, thus there is no need to send the MAC of the neighbour on the other side of the core as it is already known.
+%% - 
+%%------------------------------------------------------%%
 receive_core_msgs(Best_Mac) -> 
 	receive
 		{find_cores, Src_Mac, yes} -> if Src_Mac == Best_Mac -> core_found;
