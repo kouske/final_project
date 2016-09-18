@@ -1,9 +1,9 @@
 %% @author Maxim and Daniel
-%% @doc this is a simple communication test for beglebone with mesh mode.
+%% @doc This is a module describing and implementing the GHS (distributed MST) algorithm
 
--module(test).
-
+-module(ghs).
 -export([start/2]).
+-import(os_dispatcher, [get_neighbors/0, scan/0, add_peer/1, remove_peer/1, block_connection/0]).
 
 start(Neighbors, MyMac) -> 
 	FragID = MyMac,
