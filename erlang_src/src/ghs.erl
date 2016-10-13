@@ -173,7 +173,7 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 				if  Num_branches == 1 -> %if there're no branches except for Father (leaf)
 					Min_basic = Accept_Node; %set min to be the node that sent the accept
 				true -> %there are more branches
-					if (length(ConvergecastList)+1 == Num_branches) -> %if we received all convergecast messages from all the children
+					if (length(ConvergecastList) + 1 == Num_branches) -> %if we received all convergecast messages from all the children
 						Min_basic = find_min_outgoing(ConvergecastList ++ [Accept_Node], 0); %find minimum Rssi edge out of all candidates
 					true -> %we need to wait for the convergecast messages
 						main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, ConvergecastList ++ [Accept_Node]) %reiterate
@@ -184,8 +184,13 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 
 
 				 
-		{reject, SrcMac} -> [];
-
+		{reject, SrcMac} ->
+			Neighbor = [lists:keyfind(SrcMac, 1, Neighbors)], % find the neighbor
+			{_, RSSI, _} = Neighbor, % get his rssi
+			New_Neighbors = Neighbors -- Neighbor ++ [{SrcMac, RSSI, reject}], % change neighbor type to reject
+			Candidate_Mac = find_min_outgoing(New_Neighbors), % find a new outgoing edge
+			{test, MyMac, FragID, FragLevel} ! Candidate_Mac, % test it
+			main_receive(MyMac, FragID, FragLevel, Father, New_Neighbors, Messages, State, ConvergecastList); % reiterate
 
 
 		{convergecast, SrcMAC, {DstMac, DstRssi}} -> []
