@@ -144,8 +144,8 @@ main_recceive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conv
 
 		
 		{broadcast, SrcMac, SrcFragID, SrcFragLevel} -> 
-			[{broadcast, MyMac, SrcFragID, SrcFragLevel} ! MAC | {MAC, _, Type] <- Neighbors, MAC /= SrcMac and Type == branch],
-			main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, find, ConvergecastList);
+			[{broadcast, MyMac, SrcFragID, SrcFragLevel} ! MAC | {MAC, _, Type] <- Neighbors, MAC /= SrcMac and Type == branch], %forward to all branches except the father
+			main_receive(MyMac, SrcFragID, SrcFragLevel, SrcMac, Neighbors, Messages, find, ConvergecastList); %reiterate with new FragID, FragLevel and Father.
 
 
 			
