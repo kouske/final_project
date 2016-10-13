@@ -155,6 +155,7 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 			true -> %same fragment, send reject
 				{reject, MyMac}, 
 				main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList, Acc_Mac) %reiterate
+
 			end; 
 
 			
@@ -196,14 +197,36 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 
 				 
 		{reject, SrcMac} ->
-			Neighbor = [lists:keyfind(SrcMac, 1, Neighbors)], % find the neighbor
-			{_, RSSI, _} = Neighbor, % get his rssi
-			New_Neighbors = Neighbors -- Neighbor ++ [{SrcMac, RSSI, reject}], % change neighbor type to reject
-			Candidate_Mac = find_min_outgoing(New_Neighbors), % find a new outgoing edge
-			{test, MyMac, FragID, FragLevel} ! Candidate_Mac, % test it
-			main_receive(MyMac, FragID, FragLevel, Father, New_Neighbors, Messages, State, ConvergecastList); % reiterate
+				Neighbor = [lists:keyfind(SrcMac, 1, Neighbors)], % find the neighbor
+				{_, RSSI, _} = Neighbor, % get his rssi
+				New_Neighbors = Neighbors -- Neighbor ++ [{SrcMac, RSSI, reject}], % change neighbor type to reject
 
-
-		{convergecast, SrcMAC, {DstMac, DstRssi}} -> []
-	
+				Num_branches = length([0 || {_, _, Type} <- New_Neighbors, Type == branch]),
+				Num_basic = length([0 || {_, _, Type} <- New_Neighbors, Type == basic]),
+				
+				if (Num_basic > 0) -> % if more than 1 basic remains, we can test
+					Candidate = find_min_outgoing(New_Neighbors), % find a new outgoing edge
+					{Candidate_Mac, _, _} = Candidate,
+					{test, MyMac, FragID, FragLevel} ! Candidate_Mac, % test it
+					main_receive(MyMac, FragID, FragLevel, Father, New_Neighbors, Messages, State, ConvergecastList); % reiterate
+				true -> % no more basic edges, check if to send convergecast or not
+					if (MyMac == FragID) -> % this node is the core
+						if (Num_branches == length(ConvergecastList)) -> % all branches already reported
+							Candidate = find_min_outgoing(ConvergecastList, hd(ConvergecastList)),
+							{Candidate_Mac, _, _} = Candidate,
+							{change_core} ! Candidate_Mac,
+							main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, []);
+						true ->
+							main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList)
+						end
+					true -> % this node is not the core
+						Candidate_Mac = find_min_outgoing(ConvergecastList, hd(ConvergecastList)),
+						{convergecast, MyMac, Candidate_Mac}
+						
+					  
+		{convergecast, SrcMAC, {DstMac, DstRssi}} -> 
+			
+			
+				   
+					
 	end.
