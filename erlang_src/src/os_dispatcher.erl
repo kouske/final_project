@@ -20,7 +20,7 @@ get_neighbors() ->
 	Signal = [X || X <- string:tokens(os:cmd("iw dev mesh0 station dump | grep 'signal avg'"), "\n\t "), X /= "signal" , X /= "avg:", X /= "dBm"],
 	MAC = [list_to_atom(string:to_upper(string:join(string:tokens(Y, ":"),""))) ||
 			Y <- string:tokens(os:cmd("iw dev mesh0 station dump | grep Station"), "\n\t "), Y /= "Station" , Y /= "(on", Y/= "mesh0)"],
-	lists:zip(MAC, Signal).
+	lists:zip(MAC, Signal, basic).
 
 block_connection() ->
 	os:cmd("wpa_cli -i mesh0 set_network 0 no_auto_peer 1").

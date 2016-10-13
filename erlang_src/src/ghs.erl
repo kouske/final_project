@@ -47,7 +47,7 @@ find_cores(Neighbors, MyMac, FragID, FragLevel) ->
 snd_core_msgs(Neighbors, MyMac) ->
 	{Best_Mac,_} = hd(Neighbors), %list is ordered, the first entry is the lowest RSSI
 	{find_core, MyMac, yes} ! Best_Mac, %send "yes" to the best path
-	[{find_core, MyMac, no} ! Dest_Mac || {Dest_Mac,_} <- Neighbors--[hd(Neighbors)]], %send "no" to all the rest.
+	[{find_core, MyMac, no} ! Dest_Mac || {Dest_Mac,_,_} <- Neighbors--[hd(Neighbors)]], %send "no" to all the rest.
 	Best_Mac.
 
 %%------------------------------------------------------%%
@@ -107,22 +107,25 @@ change_core() -> [].
 %%------------------------------------------------------%%
 %% this function will find the best outgoing path out of the convergecast list.
 %%------------------------------------------------------%%
-find_min_outgoing([], Min) -> min;
-find_min_outgoing(ConvergecastList, {Min_Mac, Min_Rssi}) -> 
-	{Mac, Rssi} = hd(ConvergecastList),
+find_min_outgoing([], {Min_Mac,_}) -> Min_Mac;
+find_min_outgoing(Neighbors, {Min_Mac, Min_Rssi}) -> 
+	{Mac, Rssi} = hd(Neighbors),
 	if Rssi < Min_Rssi -> 
-		find_min_outgoing(ConvergecastList -- [hd(ConvergecastList)], hd(ConvergecastList));
+		find_min_outgoing(Neighbors -- [hd(Neighbors)], hd(Neighbors));
 	true -> 
-		find_min_outgoing(ConvergecastList -- [hd(ConvergecastList)], {Min_Mac, Min_Rssi})
-	end;
-find_min_outgoing(ConvergecastList, 0) -> find_min_outgoing(ConvergecastList, hd(ConvergecastList)).
+		find_min_outgoing(Neighbors -- [hd(Neighbors)], {Min_Mac, Min_Rssi})
+	end.
+	
+find_min_outgoing(Neighbors) -> 
+	Basic_Neighbors = [{Mac, Rssi} || {Mac, Rssi, Type} <- Neighbors, Type == basic],
+	find_min_outgoing(Basic_Neighbors -- [hd(Basic_Neighbors)], hd(Basic_Neighbors)).
 
 
 %%------------------------------------------------------%%
 %% this function is the main loop of the algorithm.
 %% 
-%% Neighbors : {Mac, Rssi} -- the full list of all neighbors
-%% ConveergecastList : {Mac, Rssi} -- a list of nodes that are candidates for minimum outgoing basic edge. the list consists of the local minimum basic edge and the minimum basic edges of the node's children.
+%% Neighbors : {Mac, Rssi, Type} -- the full list of all neighbors
+%% ConvergecastList : {Mac, Rssi} -- a list of nodes that are candidates for minimum outgoing basic edge. the list consists of the local minimum basic edge and the minimum basic edges of the node's children.
 %% Messages : list of test message pending reply.
 %% State : find/found -- the state of the algorithm.
 %%------------------------------------------------------%%
@@ -151,10 +154,12 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 				main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList) %reiterate
 			end; 
 
+			
 		%% a broadcast message is sent to update the fragID and fragLevel.
 		%% after a broadcast message is received, the convergecast process should begin.
 		{broadcast, SrcMac, SrcFragID, SrcFragLevel} -> 
-			
+			Min_Node = find_min_outgoing(Neighbors, 0), %find the minimum outgoing basic edge
+			{test, MyMacm FragID, FragLevel} ! Min_Mac, %send a test message to the min edge
 			[{broadcast, MyMac, SrcFragID, SrcFragLevel} ! MAC || {MAC, _, Type} <- Neighbors, MAC /= SrcMac, Type == branch], %forward to all branches except the father
 			% TODO : start convergecast process.
 			main_receive(MyMac, SrcFragID, SrcFragLevel, SrcMac, Neighbors, Messages, find, []); %reiterate with new FragID, FragLevel, Father and emply ConvergecastList.
