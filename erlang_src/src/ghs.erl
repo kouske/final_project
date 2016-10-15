@@ -108,13 +108,15 @@ change_core() -> [].
 %% this function will find the best outgoing path out of the convergecast list.
 %%------------------------------------------------------%%
 find_min_outgoing([], Min_Node) -> Min_Node;
+
 find_min_outgoing(ConvergecastList, {Min_SrcMac, {Min_Mac, Min_Rssi, Min_Type}}) ->
-	{SrcMac, {Mac, Rssi, Type}} = hs(ConvergecastList),
+	{SrcMac, {Mac, Rssi, Type}} = hd(ConvergecastList),
 	if (Rssi < Min_Rssi) ->
-		find_min_outgoing(ConvergecastList -- hd(ConvergecastList), hd(ConvergecastList);
+		find_min_outgoing(ConvergecastList -- hd(ConvergecastList), hd(ConvergecastList));
 	true -> 
 		find_min_outgoing(ConvergecastList -- hd(ConvergecastList), {Min_SrcMac, {Min_Mac, Min_Rssi, Min_Type}})
 	end;
+	
 find_min_outgoing(Neighbors, {Min_Mac, Min_Rssi, Min_Type}) -> 
 	{Mac, Rssi, Type} = hd(Neighbors),
 	if (Rssi < Min_Rssi) -> 
@@ -160,7 +162,7 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 					main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages ++ [{SrcMac, SrcFragID, SrcFragLevel}], State, ConvergecastList, Acc_Mac) 
 				end; 
 			true -> %same fragment, send reject
-				{reject, MyMac}, 
+				{reject, MyMac} ! SrcMac, 
 				main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList, Acc_Mac) %reiterate
 
 			end; 
@@ -184,20 +186,20 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 				if (MyMac == FragID) -> %core
 					Num_children = Num_branches; %no father
 				true ->  %not core
-					Num_children = Num_branches -1 %father
+					Num_children = (Num_branches - 1) %father
 				end,
 				
-				if  ((Num_children - length(ConvergecastList))== 0) -> %if there're no branches except for Father (leaf) - no need to wait for convergecast messages
-						Min_basic = find_min_outgoing(ConvergecastList ,{MyMac, Accept_Node}); %find minimum Rssi edge out of all candidates
+				if ((Num_children - (length(ConvergecastList))) == 0) -> %if there're no branches except for Father (leaf) - no need to wait for convergecast messages
+						Min_basic = find_min_outgoing(ConvergecastList ,{MyMac, Accept_Node}), %find minimum Rssi edge out of all candidates
 						{Min_SrcMac, {Min_Mac, Min_Rssi, Min_Type}} = Min_basic,
 						if (MyMac == FragID) -> %core
-							{change_core} ! Min_basic;
+							{change_core} ! Min_Mac;
 						true -> 
-							{convergecast, Min_basic)
-						end;
-						main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, [], Min_basic) %reiterate
+							{convergecast, Min_basic} ! Father
+						end,
+						main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, [], Min_basic); %reiterate
 				true -> %we need to wait for the convergecast messages
-						main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList ++ [{MyMac, Accept_Node}], Min_basic) %reset ConvergecastList and reiterate
+						main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList ++ [{MyMac, Accept_Node}], Acc_Mac) %reset ConvergecastList and reiterate
 				end;
 			true -> %preperties are outdated
 				main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList, Acc_Mac) %discard message and reiterate
@@ -227,19 +229,23 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 							main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList, Acc_Mac)
 						end;
 					true -> % this node is not the core & no more basic edges
-						if (Num_branches == length(ConvergecastList)) ->
-							ConvergecastRecord = find_min_outgoing(ConvergecastList),
+						if (Num_branches == length(ConvergecastList)) -> % no more branches as well
+							ConvergecastRecord = find_min_outgoing(ConvergecastList), % we can report to father
 							{convergecast, ConvergecastRecord} ! Father,
-							main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, [], Acc_Mac)
+							main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, [], Acc_Mac);
+						true -> % we still have more branches
+							main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList, Acc_Mac)
+						end
 					end
 				end;
 						
 					  
 		{convergecast, ConvergecastRecord} -> 
-			Num_children = length([0 || {_, _, Type} <- Neighbors, Type == branch, Type == basic]),
+			Num_branches = length([0 || {_, _, Type} <- Neighbors, Type == branch]),
+			Num_basic = lists:keyfind(basic, 3, Neighbors),
 			
 			if (MyMac == FragID) -> % this node is the core
-				if (Num_children =< length(ConvergecastList ++ [ConvergecastRecord])) -> % all branches already reported
+				if (Num_branches == (length(ConvergecastList) + 1)) -> % all branches already reported
 					{Candidate_Mac, {_, _, _}} = find_min_outgoing(ConvergecastList ++ [ConvergecastRecord]), % find minimum the list we got from our children
 					{change_core} ! Candidate_Mac,
 					main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, [], Acc_Mac);
@@ -247,13 +253,12 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 					main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList, Acc_Mac)
 				end;
 			true -> % this node is not the core
-				if (Num_branches == length(ConvergecastList) -> % all branches already reported
+				if (Num_branches == length(ConvergecastList)) -> % all branches already reported
 					ConvergecastCandidate = find_min_outgoing(ConvergecastList ++ [ConvergecastRecord]),
 					{convergecast, ConvergecastCandidate} ! Father,
-					main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, [], Acc_Mac),
+					main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, [], Acc_Mac);
 				true -> % not all branched reported, return to main
 					main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList, Acc_Mac)
 				end
-			end		   
-					
+			end	   		
 	end.
