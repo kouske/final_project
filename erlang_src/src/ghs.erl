@@ -29,7 +29,7 @@ start(Neighbors, MyMac) ->
 find_cores(Neighbors, MyMac, FragID, FragLevel) -> 
 	Best_Mac = snd_core_msgs(Neighbors, MyMac), %send messages to all neighbors
 	Core_status = receive_core_msgs(Best_Mac, length(Neighbors), core_not_found), %receive and precess messages from neighbors
-	if Core_status == core_found -> CORE = Best_Mac; %if a core branch was found, set CORE value
+	if (Core_status == core_found) -> CORE = Best_Mac; %if a core branch was found, set CORE value
 	   true -> CORE = 0 end, % CORE = 0 -> this node is not adjacent to the core
 	New_Frag_ID = math:min(Best_Mac, MyMac), %the fragment ID has to be common, min MAC address of the fragment will give the same result without message passing
 	broadcast().
@@ -107,17 +107,24 @@ change_core() -> [].
 %%------------------------------------------------------%%
 %% this function will find the best outgoing path out of the convergecast list.
 %%------------------------------------------------------%%
-find_min_outgoing([], {Min_Mac,_}) -> Min_Mac;
-find_min_outgoing(Neighbors, {Min_Mac, Min_Rssi}) -> 
-	{Mac, Rssi} = hd(Neighbors),
-	if Rssi < Min_Rssi -> 
+find_min_outgoing([], Min_Node) -> Min_Node;
+find_min_outgoing(ConvergecastList, {Min_SrcMac, {Min_Mac, Min_Rssi, Min_Type}}) ->
+	{SrcMac, {Mac, Rssi, Type}} = hs(ConvergecastList),
+	if (Rssi < Min_Rssi) ->
+		find_min_outgoing(ConvergecastList -- hd(ConvergecastList), hd(ConvergecastList);
+	true -> 
+		find_min_outgoing(ConvergecastList -- hd(ConvergecastList), {Min_SrcMac, {Min_Mac, Min_Rssi, Min_Type}})
+	end;
+find_min_outgoing(Neighbors, {Min_Mac, Min_Rssi, Min_Type}) -> 
+	{Mac, Rssi, Type} = hd(Neighbors),
+	if (Rssi < Min_Rssi) -> 
 		find_min_outgoing(Neighbors -- [hd(Neighbors)], hd(Neighbors));
 	true -> 
-		find_min_outgoing(Neighbors -- [hd(Neighbors)], {Min_Mac, Min_Rssi})
+		find_min_outgoing(Neighbors -- [hd(Neighbors)], {Min_Mac, Min_Rssi, Min_Type})
 	end.
 	
 find_min_outgoing(Neighbors) -> 
-	Basic_Neighbors = [{Mac, Rssi} || {Mac, Rssi, Type} <- Neighbors, Type == basic],
+	Basic_Neighbors = [{Mac, Rssi, Type} || {Mac, Rssi, Type} <- Neighbors, Type == basic],
 	find_min_outgoing(Basic_Neighbors -- [hd(Basic_Neighbors)], hd(Basic_Neighbors)).
 
 
@@ -125,8 +132,7 @@ find_min_outgoing(Neighbors) ->
 %% this function is the main loop of the algorithm.
 %% 
 %% Neighbors : {Mac, Rssi, Type} -- the full list of all neighbors
-%% ConvergecastList : {Mac, Rssi} -- a list of nodes that are candidates for minimum outgoing basic edge. the list 
-%% consists of the local minimum basic edge and the minimum basic edges of the node's children.
+%% ConvergecastList : {SrcMac, {Mac, Rssi, Typr}} -- a list of nodes that are candidates for minimum outgoing basic edge. the list consists of the local minimum basic edge and the minimum basic edges of the node's children.
 %% Messages : list of test message pending reply.
 %% State : find/found -- the state of the algorithm.
 %%------------------------------------------------------%%
@@ -146,8 +152,8 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 		%% if the nodes are of the same fragments, the edge between them is rejected.
 		%% if the nodes are not on the same fragment, the edge can be a branch.
 		{test, SrcMac, SrcFragID, SrcFragLevel} -> 
-			if FragID /= SrcFragID ->  %diferent fragments
-				if FragLevel >= SrcFragLevel -> %levels comply
+			if (FragID /= SrcFragID) ->  %diferent fragments
+				if (FragLevel >= SrcFragLevel) -> %levels comply
 					{accept, MyMac, SrcFragID, SrcFragLevel} ! SrcMac, %send accept
 					main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList, Acc_Mac); %reiterate
 				true -> %levels do not comply, add message to list and reiterate
@@ -163,7 +169,7 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 		%% a broadcast message is sent to update the fragID and fragLevel.
 		%% after a broadcast message is received, the convergecast process should begin.
 		{broadcast, SrcMac, SrcFragID, SrcFragLevel} -> 
-			Min_Mac = find_min_outgoing(Neighbors), %find the minimum outgoing basic edge
+			{Min_Mac,_,_} = find_min_outgoing(Neighbors), %find the minimum outgoing basic edge
 			{test, MyMac, SrcFragID, SrcFragLevel} ! Min_Mac, %send a test message to the min edge
 			[{broadcast, MyMac, SrcFragID, SrcFragLevel} ! MAC || {MAC, _, Type} <- Neighbors, MAC /= SrcMac, Type == branch], %forward to all branches except the father
 			main_receive(MyMac, SrcFragID, SrcFragLevel, SrcMac, Neighbors, Messages, find, [], Acc_Mac); %reiterate with new FragID, FragLevel, Father and emply ConvergecastList.
@@ -172,24 +178,26 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 			
 		{accept, SrcMAC, SentFragID, SentFragLevel} -> 
 			if (SentFragID == FragID) and (SentFragLevel == FragLevel) -> %properties are up to date
-				Num_branches_raw = length([0||{_,_,Type} <- Neighbors, Type == branch]), %get the amount of branches for that node (including father).
+				Num_branches = length([0||{_,_,Type} <- Neighbors, Type == branch]), %get the amount of branches for that node (including father).
 				Accept_Node = lists:filter(fun({Mac, Rssi, Type}) -> Mac == SrcMAC end, Neighbors), %find Rssi of the node that sent the message.
-				if MyMac == FragID -> %core
-					Num_branches = Num_branches_raw; %no father
+				
+				if (MyMac == FragID) -> %core
+					Num_children = Num_branches; %no father
 				true ->  %not core
-					Num_branches = Num_branches_raw -1 %father
+					Num_children = Num_branches -1 %father
 				end,
 				
-				if  Num_branches == 0 -> %if there're no branches except for Father (leaf)
-					Min_basic = Accept_Node; %set min to be the node that sent the accept
-				true -> %there are more branches
-					if (length(ConvergecastList) == Num_branches) -> %if we received all convergecast messages from all the children
-						{Min_Mac, Min_Rssi} = find_min_outgoing(ConvergecastList ,Accept_Node); %find minimum Rssi edge out of all candidates
-						{change_core} ! Min_Mac,
-						main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, ConvergecastList ++ [Accept_Node], Min_basic) %reiterate
-					true -> %we need to wait for the convergecast messages
-						main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList ++ [Accept_Node], Min_basic) %reiterate
-					end
+				if  ((Num_children - length(ConvergecastList))== 0) -> %if there're no branches except for Father (leaf) - no need to wait for convergecast messages
+						Min_basic = find_min_outgoing(ConvergecastList ,{MyMac, Accept_Node}); %find minimum Rssi edge out of all candidates
+						{Min_SrcMac, {Min_Mac, Min_Rssi, Min_Type}} = Min_basic,
+						if (MyMac == FragID) -> %core
+							{change_core} ! Min_basic;
+						true -> 
+							{convergecast, Min_basic)
+						end;
+						main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, [], Min_basic) %reiterate
+				true -> %we need to wait for the convergecast messages
+						main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList ++ [{MyMac, Accept_Node}], Min_basic) %reset ConvergecastList and reiterate
 				end;
 			true -> %preperties are outdated
 				main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList, Acc_Mac) %discard message and reiterate
