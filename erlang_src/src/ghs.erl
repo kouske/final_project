@@ -28,11 +28,14 @@ start(Neighbors, MyMac) ->
 %%------------------------------------------------------%%
 find_cores(Neighbors, MyMac, FragID, FragLevel) -> 
 	Best_Mac = snd_core_msgs(Neighbors, MyMac), %send messages to all neighbors
-	Core_status = receive_core_msgs(Best_Mac, length(Neighbors), core_not_found), %receive and precess messages from neighbors
+	Core_status = receive_core_msgs(Best_Mac, length(Neighbors), core_not_found), %receive and process messages from neighbors
 	if (Core_status == core_found) -> CORE = Best_Mac; %if a core branch was found, set CORE value
 	   true -> CORE = 0 end, % CORE = 0 -> this node is not adjacent to the core
 	New_Frag_ID = math:min(Best_Mac, MyMac), %the fragment ID has to be common, min MAC address of the fragment will give the same result without message passing
-	broadcast().
+	if (New_Frag_ID == MyMac) -> %core
+		broadcast(),
+	end,
+	main_receive(MyMac, New_Frag_ID, 0, MyMac, Neighbors, [], find, [], []).
 
 %%------------------------------------------------------%%
 %% A function for sending core finding messages to all neighbors
@@ -138,16 +141,29 @@ find_min_outgoing(Neighbors) ->
 %% Messages : list of test message pending reply.
 %% State : find/found -- the state of the algorithm.
 %%------------------------------------------------------%%
-main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList, Acc_Mac) ->
-	
-	% TODO : check messages
-	
+main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList, Acc_Mac) ->	
 	receive
 		
 		%% after the convergecast, the core will send a connect message to the fragment's minimum outgoing basic edge.
 		%% this message will merge or absorb the two fragments, depending on the state of the receipient.
-		{connect, SrcMac, SrcFragID, SrcFragLevel} -> [];
+		{connect, SrcMac, SrcFragID, SrcFragLevel} -> 
+			if (State == find) -> 
+				
+			true -> %found
+				if (FragLevel == SrcFragLevel) -> 
+					
+				true -> % /=, probably >
+					
+				end
+			end;
 		
+		%% the core sends this message to the node in it's fragment that is connected to the minimum ougoing basic edge.
+		%% the node receiving this message needs to sent a connect message to the node on the other side of the minimum edge.
+		{change_core} -> 
+			{connect, MyMac, FragID, FragLevel} ! Acc_Mac,
+			{_,Acc_Rssi,_} = lists:keyfind(Acc_Mac, 1, Neighbors),
+			New_Neighbors = (Neighbors -- [Acc_node]) ++ [{Acc_Mac, Acc_Rssi, branch}], %change the type of Acc_node to branch
+			main_receive(MyMac, FragID, FragLevel, Father, New_Neighbors, Messages, State, ConvergecastList, []);
 		
 		
 		%% test message is sent to the minimum outgoing basic edge to see whether the node on the other side is in the same fragment or not.
@@ -194,7 +210,7 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 						{Min_SrcMac, {Min_Mac, Min_Rssi, Min_Type}} = Min_basic,
 						if (MyMac == FragID) -> %core
 							{change_core} ! Min_Mac;
-						true -> 
+						true -> %not core
 							{convergecast, Min_basic} ! Father
 						end,
 						main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, [], Min_basic); %reiterate
