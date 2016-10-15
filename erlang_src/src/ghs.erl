@@ -125,7 +125,8 @@ find_min_outgoing(Neighbors) ->
 %% this function is the main loop of the algorithm.
 %% 
 %% Neighbors : {Mac, Rssi, Type} -- the full list of all neighbors
-%% ConvergecastList : {Mac, Rssi} -- a list of nodes that are candidates for minimum outgoing basic edge. the list consists of the local minimum basic edge and the minimum basic edges of the node's children.
+%% ConvergecastList : {Mac, Rssi} -- a list of nodes that are candidates for minimum outgoing basic edge. the list 
+%% consists of the local minimum basic edge and the minimum basic edges of the node's children.
 %% Messages : list of test message pending reply.
 %% State : find/found -- the state of the algorithm.
 %%------------------------------------------------------%%
@@ -205,28 +206,46 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 				Num_basic = length([0 || {_, _, Type} <- New_Neighbors, Type == basic]),
 				
 				if (Num_basic > 0) -> % if more than 1 basic remains, we can test
-					Candidate = find_min_outgoing(New_Neighbors), % find a new outgoing edge
-					{Candidate_Mac, _, _} = Candidate,
+					{Candidate_Mac, _, _} = find_min_outgoing(New_Neighbors), % find a new outgoing edge
 					{test, MyMac, FragID, FragLevel} ! Candidate_Mac, % test it
-					main_receive(MyMac, FragID, FragLevel, Father, New_Neighbors, Messages, State, ConvergecastList); % reiterate
+					main_receive(MyMac, FragID, FragLevel, Father, New_Neighbors, Messages, State, ConvergecastList, Acc_Mac); % reiterate
 				true -> % no more basic edges, check if to send convergecast or not
 					if (MyMac == FragID) -> % this node is the core
-						if (Num_branches == length(ConvergecastList)) -> % all branches already reported
-							Candidate = find_min_outgoing(ConvergecastList, hd(ConvergecastList)),
-							{Candidate_Mac, _, _} = Candidate,
+						if (Num_branches == length(ConvergecastList)) -> % all branches already reported (last message we got was reject)
+							{Candidate_Mac, _, _} = find_min_outgoing(ConvergecastList), % find minimum from the list we got from our children
 							{change_core} ! Candidate_Mac,
-							main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, []);
-						true ->
-							main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList)
-						end
-					true -> % this node is not the core
-						Candidate_Mac = find_min_outgoing(ConvergecastList, hd(ConvergecastList)),
-						{convergecast, MyMac, Candidate_Mac}
+							main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, [], Acc_Mac);
+						true -> % not all branched reported, return to main
+							main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList, Acc_Mac)
+						end;
+					true -> % this node is not the core & no more basic edges
+						if (Num_branches == length(ConvergecastList)) ->
+							ConvergecastRecord = find_min_outgoing(ConvergecastList),
+							{convergecast, ConvergecastRecord} ! Father,
+							main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, [], Acc_Mac)
+					end
+				end;
 						
 					  
-		{convergecast, SrcMAC, {DstMac, DstRssi}} -> 
+		{convergecast, ConvergecastRecord} -> 
+			Num_children = length([0 || {_, _, Type} <- Neighbors, Type == branch, Type == basic]),
 			
-			
-				   
+			if (MyMac == FragID) -> % this node is the core
+				if (Num_children =< length(ConvergecastList ++ [ConvergecastRecord])) -> % all branches already reported
+					{Candidate_Mac, {_, _, _}} = find_min_outgoing(ConvergecastList ++ [ConvergecastRecord]), % find minimum the list we got from our children
+					{change_core} ! Candidate_Mac,
+					main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, [], Acc_Mac);
+				true -> % not all branched reported, return to main
+					main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList, Acc_Mac)
+				end;
+			true -> % this node is not the core
+				if (Num_branches == length(ConvergecastList) -> % all branches already reported
+					ConvergecastCandidate = find_min_outgoing(ConvergecastList ++ [ConvergecastRecord]),
+					{convergecast, ConvergecastCandidate} ! Father,
+					main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, [], Acc_Mac),
+				true -> % not all branched reported, return to main
+					main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList, Acc_Mac)
+				end
+			end		   
 					
 	end.
