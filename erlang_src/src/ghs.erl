@@ -147,15 +147,42 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 		%% after the convergecast, the core will send a connect message to the fragment's minimum outgoing basic edge.
 		%% this message will merge or absorb the two fragments, depending on the state of the receipient.
 		{connect, SrcMac, SrcFragID, SrcFragLevel} -> 
-			if (State == find) -> 
-				
-			true -> %found
-				if (FragLevel == SrcFragLevel) -> 
-					
-				true -> % /=, probably >
-					
-				end
-			end;
+			{_, SrcRssi, _} = lists:keyfind(SrcMac, 1, Neighbors), % find the Neighbor entry for the source node
+			New_Neighbors = (Neighbors -- [{SrcMac, _, _}]) ++ [{SrcMac, SrcRssi, branch}], %change the type of Acc_node to branch
+			if (FragLevel == SrcFragLevel) -> % same level, according to the algorithm, this can only happen if both nodes sent connect on the same edge. This means they are both in "found" state.
+				Core = math:min(MyMac, SrcMac),
+				if (MyMac == Core) -> % core, send new broadcast.
+					[{broadcast, MyMac, Core, FragLevel +1} ! MAC || {MAC, _, Type} <- New_Neighbors, Type == branch]; %forward to all branches
+				true -> % not core, the other node is the core. do nothing.
+					[]
+				end,
+				% FragLevel changed, check messages.
+				[{accept, MyMac, SrcFragID, SrcFragLevel} ! MAC || {MAC, SrcFragID, SrcFragLevel} <- Messages, SrcFragLevel =< FragLevel +1]; %send accept to all test messages with fragLevel lower or equal to our new fragLevel.
+				main_receive(MyMac, 
+							Core,
+							FragLevel +1, 
+							if (MyMac == Core) -> []; true -> Core end, 
+							New_Neighbors,
+							Messages, 
+							find, 
+							[],
+							[]);				
+			true -> % /=, probably >. different levels.
+				if (State == found) -> % no need for the orher fragment to join the search. do nothing.
+					[];
+				true -> %find, the other fragment will join the search. send broadcast to the other fragment.
+					{broadcast, MyMac, FragID, FragLevel} ! SrcMac
+				end,
+				main_receive(MyMac,
+							FragID,
+							FragLevel,
+							Father,
+							Messages,
+							State,
+							ConvergecastList,
+							Acc_Mac)
+			end;			
+			
 		
 		%% the core sends this message to the node in it's fragment that is connected to the minimum ougoing basic edge.
 		%% the node receiving this message needs to sent a connect message to the node on the other side of the minimum edge.
@@ -194,7 +221,7 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 			
 
 			
-		{accept, SrcMAC, SentFragID, SentFragLevel} -> 
+		{accept, SrcMAC, SentFragID, SentFragLevel} ->
 			if (SentFragID == FragID) and (SentFragLevel == FragLevel) -> %properties are up to date
 				Num_branches = length([0||{_,_,Type} <- Neighbors, Type == branch]), %get the amount of branches for that node (including father).
 				Accept_Node = lists:filter(fun({Mac, Rssi, Type}) -> Mac == SrcMAC end, Neighbors), %find Rssi of the node that sent the message.
@@ -217,7 +244,14 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 				true -> %we need to wait for the convergecast messages
 						main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList ++ [{MyMac, Accept_Node}], Acc_Mac) %reset ConvergecastList and reiterate
 				end;
-			true -> %preperties are outdated
+			true -> %preperties are outdated 
+			%%
+			%%!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			%%
+			%% TODO : discarding is no good. we need to check if we can still accept or to reject (and test again). doing nothing makes the process halt because there will never be another accept or revect because we did not send another test.
+			%%
+			%%!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			%%
 				main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList, Acc_Mac) %discard message and reiterate
 			end;
 
