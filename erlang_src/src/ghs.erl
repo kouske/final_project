@@ -244,10 +244,10 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 			main_receive(MyMac, SrcFragID, SrcFragLevel, SrcMac, Neighbors, Messages, find, [], Acc_Mac);
 			
 		
-		{accept, SrcMAC, SentFragID, SentFragLevel} ->
+		{accept, SrcMac, SentFragID, SentFragLevel} ->
 			if (SentFragID == FragID) and (SentFragLevel == FragLevel) -> %properties are up to date
 				Num_branches = length([0||{_,_,Type} <- Neighbors, Type == branch]), %get the amount of branches for that node (including father).
-				Accept_Node = lists:filter(fun({Mac, Rssi, Type}) -> Mac == SrcMAC end, Neighbors), %find Rssi of the node that sent the message.
+				Accept_Node = lists:filter(fun({Mac, Rssi, Type}) -> Mac == SrcMac end, Neighbors), %find Rssi of the node that sent the message.
 				
 				if (MyMac == FragID) -> %core
 					Num_children = Num_branches; %no father
