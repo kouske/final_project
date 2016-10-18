@@ -269,6 +269,7 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 						main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList ++ [{MyMac, Accept_Node}], Acc_Mac) 
 				end;
 			true -> %properties are outdated 
+				io:format("Node ~p got outdated accept from ~p~n", [MyMac, SrcMac]),
 			%%
 			%%!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			%%
