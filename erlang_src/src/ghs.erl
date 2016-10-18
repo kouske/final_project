@@ -8,7 +8,7 @@
 start(Neighbors, MyMac) -> 
 	FragID = MyMac, %define initial FragID
 	FragLevel = 0, %define initial FragLevel
-	find_cores(lists:keySort(2, Neighbors), MyMac, FragID, FragLevel). %Neighbors -> {MAC, RSSI}.
+	find_cores(lists:keysort(2, Neighbors), MyMac, FragID, FragLevel). %Neighbors -> {MAC, RSSI}.
 
 %%------------------------------------------------------%%
 %% the first part of the algorithm.
@@ -33,7 +33,7 @@ find_cores(Neighbors, MyMac, FragID, FragLevel) ->
 	   true -> CORE = 0 end, % CORE = 0 -> this node is not adjacent to the core
 	New_Frag_ID = math:min(Best_Mac, MyMac), %the fragment ID has to be common, min MAC address of the fragment will give the same result without message passing
 	if (New_Frag_ID == MyMac) -> %core
-		broadcast(),
+		broadcast()
 	end,
 	main_receive(MyMac, New_Frag_ID, 0, MyMac, Neighbors, [], find, [], []).
 
@@ -147,8 +147,10 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 		%% after the convergecast, the core will send a connect message to the fragment's minimum outgoing basic edge.
 		%% this message will merge or absorb the two fragments, depending on the state of the receipient.
 		{connect, SrcMac, SrcFragID, SrcFragLevel} -> 
-			{_, SrcRssi, _} = lists:keyfind(SrcMac, 1, Neighbors), % find the Neighbor entry for the source node
-			New_Neighbors = (Neighbors -- [{SrcMac, _, _}]) ++ [{SrcMac, SrcRssi, branch}], %change the type of Acc_node to branch
+			Neighbor = lists:keyfind(SrcMac, 1, Neighbors), % find the Neighbor entry for the source node
+			{_, SrcRssi, _} = Neighbor, % get his rssi
+			
+			New_Neighbors = (Neighbors -- [Neighbor]) ++ [{SrcMac, SrcRssi, branch}], %change the type of Acc_node to branch
 			if (FragLevel == SrcFragLevel) -> % same level, according to the algorithm, this can only happen if both nodes sent connect on the same edge. This means they are both in "found" state.
 				Core = math:min(MyMac, SrcMac),
 				if (MyMac == Core) -> % core, send new broadcast.
@@ -157,9 +159,8 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 					[]
 				end,
 				% FragLevel changed, check messages.
-				[{accept, MyMac, SrcFragID, SrcFragLevel} ! MAC || {MAC, SrcFragID, SrcFragLevel} <- Messages, SrcFragLevel =< FragLevel +1]; %send accept to all test messages with fragLevel lower or equal to our new fragLevel.
-				main_receive(MyMac, 
-							Core,
+				[{accept, MyMac, SrcFragID, SrcFragLevel} ! MAC || {MAC, SrcFragID, SrcFragLevel} <- Messages, SrcFragLevel =< FragLevel +1], %send accept to all test messages with fragLevel lower or equal to our new fragLevel.
+				main_receive(MyMac, Core,
 							FragLevel +1, 
 							if (MyMac == Core) -> []; true -> Core end, 
 							New_Neighbors,
@@ -173,14 +174,7 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 				true -> %find, the other fragment will join the search. send broadcast to the other fragment.
 					{broadcast, MyMac, FragID, FragLevel} ! SrcMac
 				end,
-				main_receive(MyMac,
-							FragID,
-							FragLevel,
-							Father,
-							Messages,
-							State,
-							ConvergecastList,
-							Acc_Mac)
+				main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList, Acc_Mac)
 			end;			
 			
 		
@@ -188,7 +182,9 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 		%% the node receiving this message needs to sent a connect message to the node on the other side of the minimum edge.
 		{change_core} -> 
 			{connect, MyMac, FragID, FragLevel} ! Acc_Mac,
-			{_,Acc_Rssi,_} = lists:keyfind(Acc_Mac, 1, Neighbors),
+			Acc_node = lists:keyfind(Acc_Mac, 1, Neighbors),
+			{_, Acc_Rssi, _} = Acc_node,
+			
 			New_Neighbors = (Neighbors -- [Acc_node]) ++ [{Acc_Mac, Acc_Rssi, branch}], %change the type of Acc_node to branch
 			main_receive(MyMac, FragID, FragLevel, Father, New_Neighbors, Messages, State, ConvergecastList, []);
 		
@@ -258,9 +254,9 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 
 				 
 		{reject, SrcMac} ->
-				Neighbor = [lists:keyfind(SrcMac, 1, Neighbors)], % find the neighbor
+				Neighbor = lists:keyfind(SrcMac, 1, Neighbors), % find the neighbor
 				{_, RSSI, _} = Neighbor, % get his rssi
-				New_Neighbors = Neighbors -- Neighbor ++ [{SrcMac, RSSI, reject}], % change neighbor type to reject
+				New_Neighbors = Neighbors -- [Neighbor] ++ [{SrcMac, RSSI, reject}], % change neighbor type to reject
 
 				Num_branches = length([0 || {_, _, Type} <- New_Neighbors, Type == branch]),
 				Num_basic = length([0 || {_, _, Type} <- New_Neighbors, Type == basic]),
