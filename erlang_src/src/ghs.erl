@@ -33,7 +33,7 @@ find_cores(Neighbors, MyMac, FragID, FragLevel) ->
 	   true -> CORE = 0 end, % CORE = 0 -> this node is not adjacent to the core
 	New_Frag_ID = math:min(Best_Mac, MyMac), %the fragment ID has to be common, min MAC address of the fragment will give the same result without message passing
 	if (New_Frag_ID == MyMac) -> %core
-		broadcast()
+		broadcast(Neighbors)
 	end,
 	main_receive(MyMac, New_Frag_ID, 0, MyMac, Neighbors, [], find, [], []).
 
@@ -90,22 +90,8 @@ receive_core_msgs(Best_Mac, Msgs_left, Status) ->
 %%
 %% this stage is not needed in the first iteration of the algorithm, as every node is a fragment.
 %%------------------------------------------------------%%
-broadcast() -> [].
-
-%%------------------------------------------------------%%
-%% 1. leaves send information on their best path out of the fragment (the closest neighbor that is not in the frsgment). --if no neighbor is apparent, infinity value will be sent.
-%% 2. each intemediate node waits for all of its neighbors to send a message (accept for the father).
-%% 3. the node will choose the best path out of all the messages it received and its own outgiong paths and forwards it to the node from whom the previous broadcast was received.
-%% 4. the process will recursively continue untill it reaches the core.
-%%------------------------------------------------------%%
-convergecast() -> [].
-
-%%------------------------------------------------------%%
-%% 1. the two nodes connected to the core can now send the paths and decide on the best one.
-%% 2. a message is sent down through the branches to the node that is connected to the path.
-%% 3. the node will send a message through the path requesting to join the two fragments. the join method is dependent on the levels and Id's of the nodes on both sides of the path.
-%%------------------------------------------------------%%
-change_core() -> [].
+broadcast(Neighbors, MyMac, FragID, FragLevel) -> 
+	[{broadcast, MyMac, FragID, FragLevel} ! MAC || {MAC,_,Type} <- Neighbors, Type == branch].
 
 %%------------------------------------------------------%%
 %% this function will find the best outgoing path out of the convergecast list.
@@ -193,6 +179,13 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 		%% if the nodes are of the same fragments, the edge between them is rejected.
 		%% if the nodes are not on the same fragment, the edge can be a branch.
 		{test, SrcMac, SrcFragID, SrcFragLevel} -> 
+			Pend_Test = lists:keyfind(SrcMac, 1, Messages),
+			if (Pend_Test /= false) -> %found
+				New_Messages = Messages -- [Pend_Test];
+			true -> 
+				New_Messages = Messages
+			end,
+			
 			if (FragID /= SrcFragID) ->  %diferent fragments
 				if (FragLevel >= SrcFragLevel) -> %levels comply
 					{accept, MyMac, SrcFragID, SrcFragLevel} ! SrcMac, %send accept
@@ -240,7 +233,7 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 				true -> %we need to wait for the convergecast messages
 						main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList ++ [{MyMac, Accept_Node}], Acc_Mac) %reset ConvergecastList and reiterate
 				end;
-			true -> %preperties are outdated 
+			true -> %properties are outdated 
 			%%
 			%%!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			%%
