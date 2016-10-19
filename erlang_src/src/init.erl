@@ -22,8 +22,12 @@ init_debug() ->
 init() ->
 	compile_all(),
 	MyMac = os_dispatcher:get_self_mac(),
-	% TODO: need to add registration of MAC address as a name + cookie stuff
 	Neighbors = os_dispatcher:get_neighbors(),
+	Neighbors_IP = os_dispatcher:get_neighbors_with_ip(),
+	
+	% TODO: Add startup connection phase
+	
+	
 	ghs:start(Neighbors, MyMac).
 	
 	

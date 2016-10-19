@@ -5,12 +5,14 @@
 
 -export([start/2]).
 
+%% parameters: Neighbors = {MAC, RSSI, Type}, MyMac = MAC address
+%% 				
 start(Neighbors, MyMac) -> 
 	FragID = MyMac, %define initial FragID
 	FragLevel = 0, %define initial FragLevel
 	io:format("Node ~p starting, start ~n", [MyMac]),
 	find_cores(lists:keysort(2, Neighbors), MyMac, FragID, FragLevel).
-	%Neighbors -> {MAC, RSSI}.
+	
 
 %%------------------------------------------------------%%
 %% the first part of the algorithm.
@@ -23,7 +25,7 @@ start(Neighbors, MyMac) ->
 %% Edges will be identified via the MAC sddress of the connected node on the other side of the edge.
 %%
 %% Inputs :
-%% Neighbors - an array of {MAC, RSSI} sorted by RSSI (lowest first)
+%% Neighbors - an array of {MAC, RSSI, Type} sorted by RSSI (lowest first)
 %% MyMac - the MAC address of the node running the code
 %% FragID - the ID of the fragment of which the node running the code is part
 %% FragLevel - the level of the fragment of which the node running the code is part
