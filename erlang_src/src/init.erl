@@ -22,11 +22,16 @@ init_debug() ->
 init() ->
 	compile_all(),
 	MyMac = os_dispatcher:get_self_mac(),
+	MyIP = os_dispatcher:get_self_ip(),
 	Neighbors = os_dispatcher:get_neighbors(),
 	Neighbors_IP = os_dispatcher:get_neighbors_with_ip(),
 	
-	% TODO: Add startup connection phase
+	% start the node
+	net_kernel:start([list_to_atom(MyMac ++ "@" ++ MyIP), longnames]),
+	erlang:set_cookie(node(), final_project),
+	global:register_name(list_to_atom(MyMac), erlang:self()),
 	
+	% TODO: connect function here
 	
 	ghs:start(Neighbors, MyMac).
 	
