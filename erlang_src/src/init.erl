@@ -17,7 +17,40 @@
 
 init_debug() -> 
 	% TODO: Add init for debug mode
-	[].
+	Me = node(),
+	case Me of
+		'node1@MTG-DANIELHA' -> 
+				Neighbors = [{node2, 10, basic},
+							 {node4, 30, basic}],
+				 MyMac = node1;
+		'node2@MTG-DANIELHA' -> 
+				Neighbors = [{node1, 10, basic}, 
+							 {node6, 15, basic}, 
+							 {node3, 10, basic}],
+				 MyMac = node2;
+		'node3@MTG-DANIELHA' -> 
+				Neighbors = [{node2, 10, basic}, 
+							 {node6, 20, basic}, 
+							 {node5, 15, basic}, 
+							 {node4, 10, basic}],
+				 MyMac = node3;
+		'node4@MTG-DANIELHA' -> 
+				Neighbors = [{node3, 10, basic}, 
+							 {node1, 30, basic}, 
+							 {node5, 10, basic}],
+				 MyMac = node4;
+		'node5@MTG-DANIELHA' -> 
+				Neighbors = [{node4, 10, basic}, 
+							 {node3, 15, basic}, 
+							 {node6, 10, basic}],
+				 MyMac = node5;
+		'node6@MTG-DANIELHA' -> 
+				Neighbors = [{node5, 10, basic}, 
+							 {node3, 20, basic}, 
+							 {node2, 10, basic}],
+				 MyMac = node6
+				end,
+	ghs:start(Neighbors, MyMac).
 
 init() ->
 	compile_all(),
