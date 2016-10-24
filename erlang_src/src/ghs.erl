@@ -118,7 +118,7 @@ find_min_outgoing([], Min_Node) -> Min_Node;
 
 find_min_outgoing(ConvergecastList, {Min_SrcMac, {Min_Mac, Min_Rssi, Min_Type}}) ->
 	{_, {_, Rssi, _}} = hd(ConvergecastList),
-	if (Rssi < Min_Rssi) ->
+	if (Rssi > Min_Rssi) ->
 		find_min_outgoing(ConvergecastList -- hd(ConvergecastList), hd(ConvergecastList));
 	true -> 
 		find_min_outgoing(ConvergecastList -- hd(ConvergecastList), {Min_SrcMac, {Min_Mac, Min_Rssi, Min_Type}})
@@ -126,7 +126,7 @@ find_min_outgoing(ConvergecastList, {Min_SrcMac, {Min_Mac, Min_Rssi, Min_Type}})
 	
 find_min_outgoing(Neighbors, {Min_Mac, Min_Rssi, Min_Type}) -> 
 	{_, Rssi, _} = hd(Neighbors),
-	if (Rssi < Min_Rssi) -> 
+	if (Rssi > Min_Rssi) -> 
 		find_min_outgoing(Neighbors -- [hd(Neighbors)], hd(Neighbors));
 	true -> 
 		find_min_outgoing(Neighbors -- [hd(Neighbors)], {Min_Mac, Min_Rssi, Min_Type})
@@ -134,8 +134,12 @@ find_min_outgoing(Neighbors, {Min_Mac, Min_Rssi, Min_Type}) ->
 	
 find_min_outgoing(Neighbors) -> 
 	Basic_Neighbors = [{Mac, Rssi, Type} || {Mac, Rssi, Type} <- Neighbors, Type == basic],
-	find_min_outgoing(Basic_Neighbors -- [hd(Basic_Neighbors)], hd(Basic_Neighbors)).
-
+	if (Basic_Neighbors == []) -> 
+		{Inf_Mac,_,_} = hd(Neighbors),
+		{Inf_Mac, -1000, basic};
+	true -> 
+		find_min_outgoing(Basic_Neighbors -- [hd(Basic_Neighbors)], hd(Basic_Neighbors))
+	end.
 
 %%------------------------------------------------------%%
 %% this function is the main loop of the algorithm.
@@ -239,8 +243,10 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 		%% a broadcast message is sent to update the fragID and fragLevel.
 		%% after a broadcast message is received, the convergecast process should begin.
 		{broadcast, SrcMac, SrcFragID, SrcFragLevel} -> 
-			{Min_Mac,_,_} = find_min_outgoing(Neighbors), %find the minimum outgoing basic edge
-			global:send(Min_Mac, {test, MyMac, SrcFragID, SrcFragLevel}), %send a test message to the min edge
+			{Min_Mac,Min_Rssi,_} = find_min_outgoing(Neighbors), %find the minimum outgoing basic edge
+			if (Min_Rssi /= 1000) -> %no basics
+				global:send(Min_Mac, {test, MyMac, SrcFragID, SrcFragLevel}) %send a test message to the min edge
+			end,
 			%forward to all branches except the father
 			[global:send(MAC, {broadcast, MyMac, SrcFragID, SrcFragLevel}) || {MAC, _, Type} <- Neighbors, MAC /= SrcMac, Type == branch], 
  			%reiterate with new FragID, FragLevel, Father and empty ConvergecastList.

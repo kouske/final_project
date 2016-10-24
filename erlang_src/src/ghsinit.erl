@@ -17,11 +17,11 @@
 
 init_debug(Name) -> 
 	% TODO: Add init for debug mode
-	net_kernel:start([list_to_atom(Name), longnames]),
+	net_kernel:start([list_to_atom(Name), shortnames]),
 	erlang:set_cookie(node(), aaa),
 	global:register_name(list_to_atom(Name), erlang:self()),
-	timer:sleep(10000),
-	[net_kernel:connect_node('node' ++ I ++ "@MTG-DANIELHA") || I <- lists:seq(1,6)],
+	%timer:sleep(10000),
+	[net_kernel:connect_node(list_to_atom("node" ++ I ++ "@MTG-DANIELHA")) || I <- ["1","2","3","4","5","6"]],
 	Me = node(),
 	case Me of
 		'node1@MTG-DANIELHA' -> 
