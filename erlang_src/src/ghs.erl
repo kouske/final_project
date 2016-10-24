@@ -3,7 +3,7 @@
 
 -module(ghs).
 
--export([start/0]).
+-export([start/2]).
 
 %% parameters: Neighbors = {MAC, RSSI, Type}, MyMac = MAC address
 %% 				
@@ -350,7 +350,7 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 				if (Num_branches == length(ConvergecastList + 1 + Count_accept)) -> % all branches + one basic already reported
 					ConvergecastCandidate = find_min_outgoing(ConvergecastList ++ [ConvergecastRecord]),
 					io:format("Node ~p got CONVERGECAST from ~p, sending CONVERGECAST to ~p, main_receive-convergecast", [MyMac, SrcMac, Father]),
-					global:Send(Father, {convergecast, ConvergecastCandidate}),
+					global:send(Father, {convergecast, ConvergecastCandidate}),
 					main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, [], Acc_Mac);
 				true -> % not all branched reported, return to main
 					main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList, Acc_Mac)
