@@ -62,11 +62,15 @@ init() ->
 	MyMac = os_dispatcher:get_self_mac(),
 	MyIP = os_dispatcher:get_self_ip(),
 	Neighbors = os_dispatcher:get_neighbors(),
-	Neighbors_IP = os_dispatcher:get_neighbors_with_ip(),
+	Neighbors_IP = os_dispatcher:get_all_nodes(),
 	
 	% start the node
 	net_kernel:start([list_to_atom(MyMac ++ "@" ++ MyIP), longnames]),
 	erlang:set_cookie(node(), final_project),
+	
+	%connect to all one hop neighbors
+	[net_kernel:connect_node(list_to_atom(MAC ++ "@" ++ IP)) || {MAC, IP} <- Neighbors_IP, lists:keyfind(MAC, 1, Neighbors) /= false], 
+	
 	global:register_name(list_to_atom(MyMac), erlang:self()),
 	
 	% TODO: connect function here

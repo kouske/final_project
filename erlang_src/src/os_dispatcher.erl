@@ -15,7 +15,7 @@
 %% Internal functions
 %% ====================================================================
 
-% returns a list of tuples, for example: [{'d03972504b4d',-32, 'basic'}] 
+% returns a list of tuples (already atoms), for example: [{'d03972504b4d',-32, 'basic'}] 
 get_neighbors() ->
 	Signal = [list_to_atom(X) || X <- string:tokens(os:cmd("iw dev mesh0 station dump | grep 'signal avg'"), "\n\t "), X /= "signal" , X /= "avg:", X /= "dBm"],
 	MAC = [list_to_atom(string:join(string:tokens(Y, ":"),"")) ||
@@ -25,13 +25,13 @@ get_neighbors() ->
 
 %% parameters: the first field of an ip address
 %% returns a list of tuples {MAC, IP}
-get_neighbors_with_ip() ->
+get_all_nodes() ->
 	IP = os_dispatcher:get_self_ip(),
 	{ok, {SubNet, _, _, _}} = inet:parse_address(IP),
 	os:cmd("sysctl net.ipv4.icmp_echo_ignore_broadcasts=0"),
 	os:cmd("ping " ++ integer_to_list(SubNet) ++ ".255.255.255 -c 1"),
 	os:cmd("sysctl net.ipv4.icmp_echo_ignore_broadcasts=1"),
-	Y = [list_to_atom([Z || Z <- X, Z /= $:]) || X <- string:tokens(os:cmd("arp"), "\n\t() "), X /= "?", X /= "at", X /= "[ether]", X /= "on",X /= "mesh0"],
+	Y = [[Z || Z <- X, Z /= $:] || X <- string:tokens(os:cmd("arp"), "\n\t() "), X /= "?", X /= "at", X /= "[ether]", X /= "on",X /= "mesh0"],
 	list_pairs(Y).
 	
 
