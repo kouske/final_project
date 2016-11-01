@@ -55,6 +55,9 @@ init_debug(Name) ->
 							 {node2, 10, basic}],
 				 MyMac = node6
 				end,
+	io:format("starting GHS~n"),
+	timer:sleep(10000),
+	io:format("registered names are: ~p~n",[global:registered_names()]),
 	ghs:start(Neighbors, MyMac).
 
 init() ->

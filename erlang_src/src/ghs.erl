@@ -54,6 +54,7 @@ find_cores(Neighbors, MyMac, FragID, FragLevel) ->
 %%------------------------------------------------------%%
 snd_core_msgs(Neighbors, MyMac) ->
 	{Best_Mac,_,_} = hd(Neighbors), %list is ordered, the first entry is the lowest RSSI
+	io:format("sending core messages best_mac = ~p", [Best_Mac]),
 	global:send(Best_Mac, {find_core, MyMac, yes}), %send "yes" to the best path
 	[global:send(Dest_Mac, {find_core, MyMac, no}) || {Dest_Mac,_,_} <- Neighbors--[hd(Neighbors)]], %send "no" to all the rest.
 	Best_Mac.
@@ -245,7 +246,8 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 		{broadcast, SrcMac, SrcFragID, SrcFragLevel} -> 
 			{Min_Mac,Min_Rssi,_} = find_min_outgoing(Neighbors), %find the minimum outgoing basic edge
 			if (Min_Rssi == 1000) -> %no basics
-				if([0||{_,_,Type} <- Neighbors, Type == branch] == [0]) -> %leaf
+				Branches_No = [0||{_,_,Type} <- Neighbors, Type == branch],
+				if(Branches_No == [0]) -> %leaf
 					global:send(Father, {convergecast, {MyMac, {Min_Mac, 1000, basic}}});
 					true -> []
 				end;
