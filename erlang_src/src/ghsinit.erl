@@ -17,11 +17,17 @@
 
 init_debug(Name) -> 
 	% TODO: Add init for debug mode
+	net_kernel:stop(),
 	net_kernel:start([list_to_atom(Name), shortnames]),
+	io:format("Starting net_kernel for ~p~n",[Name]),
 	erlang:set_cookie(node(), aaa),
-	global:register_name(list_to_atom(Name), erlang:self()),
-	%timer:sleep(10000),
+	io:format("Setting cookie...~n"),
+	io:format("Sleeping...~n"),
+	timer:sleep(1000),
+	io:format("Connecting to nodes...~n"),
 	[net_kernel:connect_node(list_to_atom("node" ++ I ++ "@MTG-DANIELHA")) || I <- ["1","2","3","4","5","6"]],
+	io:format("Connected to nodes ~p~n", [nodes()]),
+	timer:sleep(1000),
 	Me = node(),
 	case Me of
 		'node1@MTG-DANIELHA' -> 
@@ -55,9 +61,14 @@ init_debug(Name) ->
 							 {node2, 10, basic}],
 				 MyMac = node6
 				end,
-	io:format("starting GHS~n"),
-	timer:sleep(10000),
-	io:format("registered names are: ~p~n",[global:registered_names()]),
+	%rand:seed(),
+	timer:sleep(5000),
+	global:register_name(list_to_atom(Name), erlang:self()),
+	global:sync(),
+	io:format("Sleeping some more ~n"),
+	timer:sleep(5000),
+	io:format("Registered names are: ~p~n",[global:registered_names()]),
+	timer:sleep(5000),
 	ghs:start(Neighbors, MyMac).
 
 init() ->

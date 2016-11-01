@@ -34,13 +34,27 @@ find_cores(Neighbors, MyMac, FragID, FragLevel) ->
 	Best_Mac = snd_core_msgs(Neighbors, MyMac), %send messages to all neighbors
 	Core_status = receive_core_msgs(Best_Mac, length(Neighbors), core_not_found), %receive and process messages from neighbors
 	io:format("Node ~p got status ~p, find_cores ~n", [MyMac, Core_status]),
-	New_Frag_ID = math:min(Best_Mac, MyMac), %the fragment ID has to be common, min MAC address of the fragment
+	case Core_status of 
+		core_not_found -> 
+			main_receive(MyMac, MyMac, 0, [], Neighbors, [], find, [], []);
+		core_found ->
+			{Branch_Mac, Branch_Rssi, _} = lists:keyfind(Best_Mac, 1, Neighbors),
+			New_Neighbors = [{Branch_Mac, Branch_Rssi, branch}] ++ (Neighbors -- hd(Neighbors)),
+			New_Frag_ID = min(Best_Mac, MyMac), %the fragment ID has to be common, min MAC address of the fragment
 											 % will give the same result without message passing
-	if (New_Frag_ID == MyMac) -> %core
-		broadcast(Neighbors, MyMac, FragID, FragLevel),
-		io:format("Node ~p is the core, starting broadcast ~n", [MyMac])
-	end,
-	main_receive(MyMac, New_Frag_ID, 0, [], Neighbors, [], find, [], []).
+			if (New_Frag_ID == MyMac) -> %core
+				broadcast(Neighbors, MyMac, FragID, FragLevel),
+				io:format("Node ~p is the core, starting broadcast ~n", [MyMac]),
+				Father = [];
+			true -> 
+				Father = Best_Mac
+			end,
+			
+			main_receive(MyMac, New_Frag_ID, 0, Father, New_Neighbors, [], find, [], [])
+	end.	
+	
+	
+	
 
 %%------------------------------------------------------%%
 %% A function for sending core finding messages to all neighbors
@@ -54,9 +68,9 @@ find_cores(Neighbors, MyMac, FragID, FragLevel) ->
 %%------------------------------------------------------%%
 snd_core_msgs(Neighbors, MyMac) ->
 	{Best_Mac,_,_} = hd(Neighbors), %list is ordered, the first entry is the lowest RSSI
-	io:format("sending core messages best_mac = ~p", [Best_Mac]),
-	global:send(Best_Mac, {find_core, MyMac, yes}), %send "yes" to the best path
-	[global:send(Dest_Mac, {find_core, MyMac, no}) || {Dest_Mac,_,_} <- Neighbors--[hd(Neighbors)]], %send "no" to all the rest.
+	io:format("sending core messages best_mac = ~p~n", [Best_Mac]),
+	global:send(Best_Mac, {find_cores, MyMac, yes}), %send "yes" to the best path
+	[global:send(Dest_Mac, {find_cores, MyMac, no}) || {Dest_Mac,_,_} <- Neighbors--[hd(Neighbors)]], %send "no" to all the rest.
 	Best_Mac.
 
 %%------------------------------------------------------%%
@@ -96,7 +110,7 @@ receive_core_msgs(Best_Mac, Msgs_left, Status) ->
 		{find_cores, _, no} -> 
 			receive_core_msgs(Best_Mac, Msgs_left - 1, Status);
 		
-		_ -> io:format("Node received UNEXPECTED, receive_core_msgs ~n")
+		Unexpected -> io:format("Node received ~p, receive_core_msgs ~n", [Unexpected])
 	end.
 	
 
@@ -109,7 +123,7 @@ receive_core_msgs(Best_Mac, Msgs_left, Status) ->
 %%------------------------------------------------------%%
 
 broadcast(Neighbors, MyMac, FragID, FragLevel) -> 
-	[global:send(MAC, {broadcast, MyMac, FragID, FragLevel}) || {MAC,_,Type} <- Neighbors, Type == branch].
+	io:format("~p", [[global:send(MAC, {broadcast, MyMac, FragID, FragLevel}) || {MAC,_,Type} <- Neighbors, Type == branch]]).
 
 
 %%------------------------------------------------------%%
@@ -155,7 +169,8 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 	
 	BasicList = lists:keyfind(basic, 3, Neighbors),
 	if(BasicList == []) -> 
-		io:format("Finished")
+		io:format("Finished");
+	true -> []
 	end,
 	
 	receive		
@@ -170,7 +185,7 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 
 			if (FragLevel == SrcFragLevel) -> % same level, according to the algorithm, this can only happen if both nodes sent connect on the same edge. 
 											  %This means they are both in "found" state.
-				Core = math:min(MyMac, SrcMac),
+				Core = min(MyMac, SrcMac),
 				if (MyMac == Core) -> % core, send new broadcast.
 					io:format("Node ~p got CONNECT, and is now the new core, sending BROADCAST, main_receive-connect ~n", [MyMac]),
 					[global:send(MAC, {broadcast, MyMac, Core, FragLevel + 1})|| {MAC, _, Type} <- New_Neighbors, Type == branch]; %forward to all branches
@@ -244,6 +259,7 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 		%% a broadcast message is sent to update the fragID and fragLevel.
 		%% after a broadcast message is received, the convergecast process should begin.
 		{broadcast, SrcMac, SrcFragID, SrcFragLevel} -> 
+			io:format("received broadcast, SrcMac = ~p, SrcFragID = ~p, SrcFragLevel = ~p~n", [SrcMac, SrcFragID, SrcFragLevel]),
 			{Min_Mac,Min_Rssi,_} = find_min_outgoing(Neighbors), %find the minimum outgoing basic edge
 			if (Min_Rssi == 1000) -> %no basics
 				Branches_No = [0||{_,_,Type} <- Neighbors, Type == branch],
