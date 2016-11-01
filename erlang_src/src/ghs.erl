@@ -244,7 +244,12 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 		%% after a broadcast message is received, the convergecast process should begin.
 		{broadcast, SrcMac, SrcFragID, SrcFragLevel} -> 
 			{Min_Mac,Min_Rssi,_} = find_min_outgoing(Neighbors), %find the minimum outgoing basic edge
-			if (Min_Rssi /= 1000) -> %no basics
+			if (Min_Rssi == 1000) -> %no basics
+				if([0||{_,_,Type} <- Neighbors, Type == branch] == [0]) -> %leaf
+					global:send(Father, {convergecast, {MyMac, {Min_Mac, 1000, basic}}});
+					true -> []
+				end;
+			true -> %yes basics	
 				global:send(Min_Mac, {test, MyMac, SrcFragID, SrcFragLevel}) %send a test message to the min edge
 			end,
 			%forward to all branches except the father
@@ -310,22 +315,16 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 				true -> % no more basic edges, check if to send convergecast or not
 					if (MyMac == FragID) -> % this node is the core
 						if (Num_branches == length(ConvergecastList)) -> % all branches already reported (last message we got was reject)
-							{Candidate_Mac, {_, RSSI, _}} = find_min_outgoing(ConvergecastList, hd(ConvergecastList)), % find minimum from the list we got from our children
+							{Candidate_Mac, _, _} = find_min_outgoing(ConvergecastList), % find minimum from the list we got from our children
 							io:format("Node ~p (the core) got REJECT from ~p, sending CHANGE_CORE to ~p, main_receive-reject", [MyMac, SrcMac, Candidate_Mac]),
-							
-							if (RSSI == -1000) ->
-								io:format("DONE~n");
-							true ->
-								global:send(Candidate_Mac, {change_core}),
-								main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, [], Acc_Mac)
-							end;
-							
+							global:send(Candidate_Mac, {change_core}),
+							main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, [], Acc_Mac);
 						true -> % not all branched reported, return to main
 							main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList, Acc_Mac)
 						end;
 					true -> % this node is not the core & no more basic edges
 						if (Num_branches == (length(ConvergecastList) + 1)) -> % no more branches as well (we got reject from our candidate)
-							ConvergecastRecord = find_min_outgoing(ConvergecastList, {SrcMac, {-1000, -1000, basic}}), % we can report to father
+							ConvergecastRecord = find_min_outgoing(ConvergecastList), % we can report to father
 							io:format("Node ~p got REJECT from ~p, sending CONVERGECAST to ~p, main_receive-reject", [MyMac, SrcMac, Father]),
 							global:send(Father, {convergecast, ConvergecastRecord}),
 							main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, [], Acc_Mac);
@@ -351,16 +350,10 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 			if (MyMac == FragID) -> % this node is the core
 				if (Num_branches == (length(ConvergecastList) + Count_accept)) -> % all branches + one basic already reported					
 					% find minimum in the list we got from our children
-					{Candidate_Mac, {_, RSSI, _}} = find_min_outgoing(ConvergecastList, ConvergecastRecord),				
-					
-					if (RSSI == -1000) ->
-						io:format("DONE~n"),
-						main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, [], Acc_Mac);
-					true ->
-						io:format("Node ~p (the core) got CONVERGECAST from ~p, sending CHANGE_CORE to ~p, main_receive-convergecast", [MyMac, SrcMac, Candidate_Mac]),
-						global:send(Candidate_Mac, {change_core}),
-						main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, [], Acc_Mac)
-					end;
+					{Candidate_Mac, {_, _, _}} = find_min_outgoing(ConvergecastList ++ [ConvergecastRecord]),
+					io:format("Node ~p (the core) got CONVERGECAST from ~p, sending CHANGE_CORE to ~p, main_receive-convergecast", [MyMac, SrcMac, Candidate_Mac]),
+					global:send(Candidate_Mac, {change_core}),
+					main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, [], Acc_Mac);
 				true -> % not all branches reported, return to main
 					main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList, Acc_Mac)
 				end;
