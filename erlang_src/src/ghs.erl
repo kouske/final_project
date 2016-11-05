@@ -10,8 +10,8 @@
 start(Neighbors, MyMac) -> 
 	FragID = MyMac, %define initial FragID
 	FragLevel = 0, %define initial FragLevel
-	io:format("Node ~p starting, start ~n", [MyMac]),
-	find_cores(lists:keysort(2, Neighbors), MyMac, FragID, FragLevel).
+	io:format("Node ~p starting, list is ~p ~n", [MyMac, lists:reverse(lists:keysort(2, Neighbors))]),
+	find_cores(lists:reverse(lists:keysort(2, Neighbors)), MyMac, FragID, FragLevel).
 	
 
 %%------------------------------------------------------%%
@@ -188,7 +188,7 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 				Core = min(MyMac, SrcMac),
 				if (MyMac == Core) -> % core, send new broadcast.
 					io:format("Node ~p got CONNECT, and is now the new core, sending BROADCAST, main_receive-connect ~n", [MyMac]),
-					[global:send(MAC, {broadcast, MyMac, Core, FragLevel + 1})|| {MAC, _, Type} <- New_Neighbors, Type == branch]; %forward to all branches
+					[global:send(MAC, {broadcast, MyMac, Core, FragLevel + 1})|| {MAC, _, Type} <- New_Neighbors ++ [{MyMac, doesnt_matter, branch}], Type == branch]; %forward to all branches
 				true -> % not core, the other node is the core. do nothing.
 					[]
 				end,
@@ -266,7 +266,7 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 			{Min_Mac,Min_Rssi,_} = find_min_outgoing(Neighbors), %find the minimum outgoing basic edge
 			io:format("minimum outgong edge is : ~p @ RSSI : ~p ~n", [Min_Mac, Min_Rssi]),
 			if (Min_Rssi == -1000) -> %no basics
-				io:fotmat("no basics ~n"),
+				io:format("no basics ~n"),
 				Branches_No = [0||{_,_,Type} <- Neighbors, Type == branch],
 				if(length(Branches_No) == 1) -> %leaf
 					io:format("this node is a leaf, sending CONVERGECAST to father ~n"),
@@ -311,7 +311,7 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 							io:format("Node ~p got ACCEPT from ~p, sending CONVERGECAST to ~p, main_receive-accept ~n", [MyMac, SrcMac, Father]),
 							global:send(Father, {convergecast, Min_basic})
 						end,
-						main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, [], Min_basic); %reiterate
+						main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, [], Min_Mac); %reiterate
 				true -> %we need to wait for the convergecast messages
 						io:format("received ACCEPT from ~p, need to wait, not all convergecast messages recevied ~n", [SrcMac]),
 						main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList, SrcMac) 
