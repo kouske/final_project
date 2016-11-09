@@ -109,10 +109,10 @@ receive_core_msgs(Best_Mac, Msgs_left, Status) ->
 				receive_core_msgs(Best_Mac, Msgs_left - 1, Status) end;
 		
 		{find_cores, Src_Mac, no} -> 
-		io:format("Receiving {find_cores, no} from ~p, receive_core_msgs ~n", [Src_Mac]),
-			receive_core_msgs(Best_Mac, Msgs_left - 1, Status)
+			io:format("Receiving {find_cores, no} from ~p, receive_core_msgs ~n", [Src_Mac]),
+			receive_core_msgs(Best_Mac, Msgs_left - 1, Status);
 		
-		%Unexpected -> io:format("Node received ~p, receive_core_msgs ~n", [Unexpected])
+		Unexpected -> io:format("Node received UNEXPECTED ~p, receive_core_msgs ~n", [Unexpected])
 	end.
 	
 
@@ -399,7 +399,11 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 				end;
 			true -> % this node is not the core
 				if (Num_branches == length(ConvergecastList) + 2 + Count_accept) -> % all branches + one basic already reported
-					ConvergecastCandidate = find_min_outgoing(ConvergecastList ++ [ConvergecastRecord], hd(ConvergecastList)),
+					if (ConvergecastList == []) ->
+						ConvergecastCandidate = {MyMac, {MyMac, -1000, basic}};
+					true ->
+						ConvergecastCandidate = find_min_outgoing(ConvergecastList ++ [ConvergecastRecord], hd(ConvergecastList))
+					end,
 					io:format("~p: Got CONVERGECAST from ~p, sending CONVERGECAST to ~p, main_receive-convergecast ~n", [MyMac, SrcMac, Father]),
 					global:send(Father, {convergecast, ConvergecastCandidate}),
 					main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, found, [], Acc_Mac);

@@ -26,11 +26,7 @@ init_debug_mode(NodeList) ->
 	[net_kernel:connect_node(list_to_atom(Node)) || Node <- NodeList],
 	io:format("Connected to nodes ~p~n", [nodes()]),
 
-	[rpc:cast(list_to_atom(Node), ghsinit, init_debug, []) || Node <- NodeList],
-	
-	timer:sleep(5000),
-	global:register_name(logger, erlang:self()),
-	global:sync().
+	[rpc:cast(list_to_atom(Node), ghsinit, init_debug, []) || Node <- NodeList].
 
 kill_all() ->
 		[global:send(Node, {exit}) || Node <- global:registered_names(), Node /= logger].
