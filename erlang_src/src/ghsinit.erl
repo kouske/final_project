@@ -21,7 +21,6 @@ init_kernel_debug(Name) ->
 	io:format("Setting cookie...~n").
 	
 init_debug() -> 
-	compile_all(),
 	io:format("Connecting to nodes...~n"),
 	[net_kernel:connect_node(list_to_atom("node" ++ I ++ "@MTG-DANIELHA")) || I <- ["1","2","3","4","5","6"]],
 	io:format("Connected to nodes ~p~n", [nodes()]),
@@ -71,7 +70,6 @@ init_debug() ->
 	ghs:start(Neighbors, MyMac).
 
 init() ->
-	compile_all(),
 	MyMac = os_dispatcher:get_self_mac(),
 	MyIP = os_dispatcher:get_self_ip(),
 	Neighbors = os_dispatcher:get_neighbors(),
@@ -91,8 +89,5 @@ init() ->
 	ghs:start(Neighbors, MyMac).
 	
 	
-compile_all() ->
-	compile:file("c:/users/danielha/github/final_project/erlang_src/src/ghs.erl"),
-	compile:file("c:/users/danielha/github/final_project/erlang_src/src/os_dispatcher.erl").
-	
+
 

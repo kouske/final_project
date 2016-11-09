@@ -7,7 +7,7 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([init_debug_mode/1, kill_node/1, print_stats/1]).
+-export([init_debug_mode/1, kill_all/0, print_stats/0, compile_all/0]).
 
 
 
@@ -16,6 +16,7 @@
 %% ====================================================================
 
 init_debug_mode(NodeList) ->
+	compile_all(),
 	net_kernel:stop(),
 	net_kernel:start([logger, shortnames]),
 	io:format("Starting net_kernel for logger~n"),
@@ -31,9 +32,15 @@ init_debug_mode(NodeList) ->
 	global:register_name(logger, erlang:self()),
 	global:sync().
 
-kill_node(Node) ->
-		global:send(Node, {exit}).
+kill_all() ->
+		[global:send(Node, {exit}) || Node <- global:registered_names(), Node /= logger].
 		
-print_stats(Node) ->
-		global:send(Node, {print_stats}).
-
+print_stats() ->
+		[global:send(Node, {print_stats}) || Node <- global:registered_names(), Node /= logger].
+		
+compile_all() ->
+	timer:sleep(1000),
+	compile:file("c:/users/danielha/github/final_project/erlang_src/src/ghs.erl"),
+	timer:sleep(1000),
+	compile:file("c:/users/danielha/github/final_project/erlang_src/src/os_dispatcher.erl").
+	
