@@ -36,6 +36,7 @@ find_cores(Neighbors, MyMac, FragID, FragLevel) ->
 	io:format("Node ~p got status ~p, find_cores ~n", [MyMac, Core_status]),
 	case Core_status of 
 		core_not_found -> 
+			global:send(Best_Mac, {connect, MyMac, FragID, FragLevel}),
 			main_receive(MyMac, MyMac, 0, [], Neighbors, [], find, [], []);
 		core_found ->
 			{Branch_Mac, Branch_Rssi, _} = lists:keyfind(Best_Mac, 1, Neighbors),
@@ -50,7 +51,7 @@ find_cores(Neighbors, MyMac, FragID, FragLevel) ->
 				Father = Best_Mac
 			end,
 			
-			main_receive(MyMac, New_Frag_ID, 0, Father, New_Neighbors, [], find, [], [])
+			main_receive(MyMac, New_Frag_ID, 1, Father, New_Neighbors, [], find, [], [])
 	end.	
 	
 	
@@ -185,13 +186,9 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 
 			if (FragLevel == SrcFragLevel) -> % same level, according to the algorithm, this can only happen if both nodes sent connect on the same edge. 
 											  %This means they are both in "found" state.
-				Core = min(MyMac, SrcMac),
-				if (MyMac == Core) -> % core, send new broadcast.
+				io:format("same level ~n"),
 					io:format("Node ~p got CONNECT, and is now the new core, sending BROADCAST, main_receive-connect ~n", [MyMac]),
-					[global:send(MAC, {broadcast, MyMac, Core, FragLevel + 1})|| {MAC, _, Type} <- New_Neighbors ++ [{MyMac, doesnt_matter, branch}], Type == branch]; %forward to all branches
-				true -> % not core, the other node is the core. do nothing.
-					[]
-				end,
+					[global:send(MAC, {broadcast, MyMac, MyMac, FragLevel + 1})|| {MAC, _, Type} <- New_Neighbors ++ [{MyMac, doesnt_matter, branch}], Type == branch], %forward to all branches
 				% TODO: what is this? FragLevel changed, check messages.
 
 				%send accept to all test messages with fragLevel lower or equal to our new fragLevel.
@@ -200,9 +197,10 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 				true -> []
 				end,
 				
-				main_receive(MyMac, Core, FragLevel +1, if (MyMac == Core) -> []; true -> Core end, New_Neighbors, Messages, find, [], []);	
+				main_receive(MyMac, MyMac, FragLevel +1, [], New_Neighbors, Messages, find, [], []);	
 			   
 			true -> % /=, probably >. different levels.
+				io:format("different levels ~n"),
 				if (State == found) -> % no need for the other fragment to join the search. do nothing.
 				io:format("Node ~p is in FOUND state, no need for aid in searching, main_receive-connect ~n", [MyMac]),
 					[];
