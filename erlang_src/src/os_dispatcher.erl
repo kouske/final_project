@@ -8,7 +8,7 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([get_neighbors/0, scan/2, add_peer/1, remove_peer/1, block_connection/0, get_self_mac/0, get_neighbors_with_ip/0, get_self_ip/0]).
+-export([get_neighbors/0, scan/2, add_peer/1, remove_peer/1, block_connection/0, get_self_mac/0, get_all_nodes/0, get_self_ip/0]).
 
 
 %% ====================================================================

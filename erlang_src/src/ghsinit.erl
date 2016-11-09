@@ -6,24 +6,21 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([init/0, init_debug/1]).
+-export([init/0, init_debug/0, init_kernel_debug/1]).
 
 
 %% ====================================================================
 %% Internal functions
 %% ====================================================================
 
-
-
-init_debug(Name) -> 
-	% TODO: Add init for debug mode
+init_kernel_debug(Name) ->
 	net_kernel:stop(),
-	net_kernel:start([list_to_atom(Name), shortnames]),
+	net_kernel:start([Name, shortnames]),
 	io:format("Starting net_kernel for ~p~n",[Name]),
 	erlang:set_cookie(node(), aaa),
-	io:format("Setting cookie...~n"),
-	io:format("Sleeping...~n"),
-	timer:sleep(1000),
+	io:format("Setting cookie...~n").
+	
+init_debug() -> 
 	io:format("Connecting to nodes...~n"),
 	[net_kernel:connect_node(list_to_atom("node" ++ I ++ "@MTG-DANIELHA")) || I <- ["1","2","3","4","5","6"]],
 	io:format("Connected to nodes ~p~n", [nodes()]),
@@ -61,9 +58,10 @@ init_debug(Name) ->
 							 {node2, -15, basic}],
 				 MyMac = node6
 				end,
-	%rand:seed(),
+
 	timer:sleep(5000),
-	global:register_name(list_to_atom(Name), erlang:self()),
+	
+	global:register_name(MyMac, erlang:self()),
 	global:sync(),
 	io:format("Sleeping some more ~n"),
 	timer:sleep(5000),

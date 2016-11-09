@@ -402,6 +402,14 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 					main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList ++ [ConvergecastRecord], Acc_Mac)
 				end
 			end;
+
+		%%%%%%%%%%%%%%% Debug commands %%%%%%%%%%%%%%%%%
+		{print_stats} -> 
+			io:format("MyMac: ~p~nFragID: ~p~nFragLevel: ~p~nFather: ~p~nNeighbors: ~p~nMessages: ~p~nState: ~p~nConvergecastList: 
+					   ~p~nAcc_Mac: ~p~nTHANK YOU, COME AGAIN!!~n~n", 
+					  [MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList, Acc_Mac]);
+		
+		{exit} -> [];
 		
 		CatchAll -> io:format("Main receive loop got unknown message ~p~n", [CatchAll])
 	end.
