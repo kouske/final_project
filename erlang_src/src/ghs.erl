@@ -268,7 +268,7 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 				Branches_No = [0||{_,_,Type} <- Neighbors, Type == branch],
 				if(length(Branches_No) == 1) -> %leaf
 					io:format("this node is a leaf, sending CONVERGECAST to father ~n"),
-					global:send(Father, {convergecast, {MyMac, {Min_Mac, -1000, basic}}}),
+					global:send(SrcMac, {convergecast, {MyMac, {Min_Mac, -1000, basic}}}),
 					main_receive(MyMac, SrcFragID, SrcFragLevel, SrcMac, Neighbors, Messages, found, [], Acc_Mac);
 				true -> [] % not leaf
 				end;
