@@ -21,6 +21,7 @@ init_kernel_debug(Name) ->
 	io:format("Setting cookie...~n").
 	
 init_debug() -> 
+	compile_all(),
 	io:format("Connecting to nodes...~n"),
 	[net_kernel:connect_node(list_to_atom("node" ++ I ++ "@MTG-DANIELHA")) || I <- ["1","2","3","4","5","6"]],
 	io:format("Connected to nodes ~p~n", [nodes()]),
@@ -91,7 +92,7 @@ init() ->
 	
 	
 compile_all() ->
-	compile:file("ghs.erl"),
-	compile:file("os_dispatcher.erl").
+	compile:file("c:/users/danielha/github/final_project/erlang_src/src/ghs.erl"),
+	compile:file("c:/users/danielha/github/final_project/erlang_src/src/os_dispatcher.erl").
 	
 

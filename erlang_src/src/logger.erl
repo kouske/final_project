@@ -7,7 +7,7 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([init_debug_mode/1, print_logs/0]).
+-export([init_debug_mode/1, kill_node/1, print_stats/1]).
 
 
 
@@ -22,22 +22,18 @@ init_debug_mode(NodeList) ->
 	erlang:set_cookie(node(), aaa),
 	io:format("Setting cookie...~n"),
 	io:format("Connecting to nodes...~n"),
-	[net_kernel:connect_node(Node) || Node <- NodeList],
+	[net_kernel:connect_node(list_to_atom(Node)) || Node <- NodeList],
 	io:format("Connected to nodes ~p~n", [nodes()]),
 
-	[rpc:call(list_to_atom(Node), ghsinit, init_debug, []) || Node <- NodeList],
+	[rpc:cast(list_to_atom(Node), ghsinit, init_debug, []) || Node <- NodeList],
 	
 	timer:sleep(5000),
 	global:register_name(logger, erlang:self()),
-	global:sync(),
-	print_logs().
+	global:sync().
 
-print_logs() ->
-	io:format("Logging process started~n"),
-	
-	receive
-		{Node, Msg} -> global:send(Node, Msg);
+kill_node(Node) ->
+		global:send(Node, {exit}).
 		
-		Msg -> io:format("~p~n", [Msg])
-	end.
+print_stats(Node) ->
+		global:send(Node, {print_stats}).
 
