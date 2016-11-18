@@ -28,27 +28,27 @@ init_debug() ->
 	Me = node(),
 	case Me of
 		'node1@MTG-DANIELHA' -> 
-				Neighbors = [{node2, -10, basic},
+				Neighbors = [{node2, -11, basic},
 							 {node4, -30, basic}],
 				 MyMac = node1;
 		'node2@MTG-DANIELHA' -> 
-				Neighbors = [{node1, -10, basic}, 
+				Neighbors = [{node1, -11, basic}, 
 							 {node6, -15, basic}, 
-							 {node3, -10, basic}],
+							 {node3, -14, basic}],
 				 MyMac = node2;
 		'node3@MTG-DANIELHA' -> 
-				Neighbors = [{node2, -10, basic}, 
+				Neighbors = [{node2, -14, basic}, 
 							 {node6, -20, basic}, 
 							 {node5, -15, basic}, 
-							 {node4, -10, basic}],
+							 {node4, -12, basic}],
 				 MyMac = node3;
 		'node4@MTG-DANIELHA' -> 
-				Neighbors = [{node3, -10, basic}, 
+				Neighbors = [{node3, -12, basic}, 
 							 {node1, -30, basic}, 
-							 {node5, -10, basic}],
+							 {node5, -13, basic}],
 				 MyMac = node4;
 		'node5@MTG-DANIELHA' -> 
-				Neighbors = [{node4, -10, basic}, 
+				Neighbors = [{node4, -13, basic}, 
 							 {node3, -15, basic}, 
 							 {node6, -10, basic}],
 				 MyMac = node5;

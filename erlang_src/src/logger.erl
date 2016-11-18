@@ -29,6 +29,7 @@ init_debug_mode(NodeList) ->
 	[rpc:cast(list_to_atom(Node), ghsinit, init_debug, []) || Node <- NodeList].
 
 kill_all() ->
+		[global:send(Node, {print_stats}) || Node <- global:registered_names(), Node /= logger],
 		[global:send(Node, {exit}) || Node <- global:registered_names(), Node /= logger].
 		
 print_stats() ->
