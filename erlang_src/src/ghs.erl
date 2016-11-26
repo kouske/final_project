@@ -72,12 +72,12 @@ find_cores(Neighbors, MyMac, FragID, FragLevel) ->
 %% Outpust :
 %% Best_Mac - the MAC address of the neighbor with the lowers RSSI
 %%------------------------------------------------------%%
-snd_core_msgs(Neighbors, MyMac) ->
-	{Best_Mac,_,_} = hd(Neighbors), %list is ordered, the first entry is the lowest RSSI
-	io:format("~p: Sending core messages. Best_mac = ~p~n", [MyMac, Best_Mac]),
-	global:send(Best_Mac, {find_cores, MyMac, yes}), %send "yes" to the best path
-	io:format("~p~n", [[global:send(Dest_Mac, {find_cores, MyMac, no}) || {Dest_Mac,_,_} <- (Neighbors--[hd(Neighbors)])]]), %send "no" to all the rest.
-	Best_Mac.
+%snd_core_msgs(Neighbors, MyMac) ->
+%	{Best_Mac,_,_} = hd(Neighbors), %list is ordered, the first entry is the lowest RSSI
+%	io:format("~p: Sending core messages. Best_mac = ~p~n", [MyMac, Best_Mac]),
+%	global:send(Best_Mac, {find_cores, MyMac, yes}), %send "yes" to the best path
+%	io:format("~p~n", [[global:send(Dest_Mac, {find_cores, MyMac, no}) || {Dest_Mac,_,_} <- (Neighbors--[hd(Neighbors)])]]), %send "no" to all the rest.
+%	Best_Mac.
 
 %%------------------------------------------------------%%
 %% A function for receiving and precessing the core finding messages sent by neighbors
@@ -100,27 +100,27 @@ snd_core_msgs(Neighbors, MyMac) ->
 %%	 other side of the core as it is already known.
 %% - all nodes send messages to all neighbours, this means that a message needs to be received on every branch
 %%------------------------------------------------------%%
-receive_core_msgs(MyMac, _, 0, Status) -> %no more messages.
+%receive_core_msgs(MyMac, _, 0, Status) -> %no more messages.
 %	io:format("~p: Received all messages, receive_core_msgs~n", [MyMac]),
-	Status;
+%	Status;
 
-receive_core_msgs(MyMac, Best_Mac, Msgs_left, Status) -> 
-	
-	receive
-		{find_cores, Src_Mac, yes} ->
-			%io:format("~p: Receiving {find_cores, yes} from ~p, receive_core_msgs ~n", [MyMac, Src_Mac]),
-			if (Src_Mac == Best_Mac) -> 
-				receive_core_msgs(MyMac, Best_Mac, Msgs_left - 1, core_found);
-			true -> 
-				receive_core_msgs(MyMac, Best_Mac, Msgs_left - 1, Status) 
-			end;
-		
-		{find_cores, _, no} -> 
-			%io:format("~p: Receiving {find_cores, no} from ~p, receive_core_msgs ~n", [MyMac, Src_Mac]),
-			receive_core_msgs(MyMac, Best_Mac, Msgs_left - 1, Status)
-		
-		%Unexpected -> io:format("Node received UNEXPECTED ~p, receive_core_msgs ~n", [Unexpected])
-	end.
+%receive_core_msgs(MyMac, Best_Mac, Msgs_left, Status) -> 
+%	
+%	receive
+%		{find_cores, Src_Mac, yes} ->
+%			%io:format("~p: Receiving {find_cores, yes} from ~p, receive_core_msgs ~n", [MyMac, Src_Mac]),
+%			if (Src_Mac == Best_Mac) -> 
+%				receive_core_msgs(MyMac, Best_Mac, Msgs_left - 1, core_found);
+%			true -> 
+%				receive_core_msgs(MyMac, Best_Mac, Msgs_left - 1, Status) 
+%			end;
+%		
+%		{find_cores, _, no} -> 
+%			%io:format("~p: Receiving {find_cores, no} from ~p, receive_core_msgs ~n", [MyMac, Src_Mac]),
+%			receive_core_msgs(MyMac, Best_Mac, Msgs_left - 1, Status)
+%		
+%		%Unexpected -> io:format("Node received UNEXPECTED ~p, receive_core_msgs ~n", [Unexpected])
+%	end.
 	
 
 %%------------------------------------------------------%%
@@ -131,8 +131,8 @@ receive_core_msgs(MyMac, Best_Mac, Msgs_left, Status) ->
 %% this stage is not needed in the first iteration of the algorithm, as every node is a fragment.
 %%------------------------------------------------------%%
 
-broadcast(Neighbors, MyMac, FragID, FragLevel) -> 
- 	io:format("~p: Broadcasting to PIDs: ~p~n", [MyMac, [global:send(MAC, {broadcast, MyMac, FragID, FragLevel}) || {MAC,_,Type} <- (Neighbors ++ [{MyMac, -1000, branch}]), Type == branch]]).
+%broadcast(Neighbors, MyMac, FragID, FragLevel) -> 
+% 	io:format("~p: Broadcasting to PIDs: ~p~n", [MyMac, [global:send(MAC, {broadcast, MyMac, FragID, FragLevel}) || {MAC,_,Type} <- (Neighbors ++ [{MyMac, -1000, branch}]), Type == branch]]).
 
 %%------------------------------------------------------%%
 %% this function will find the best outgoing path out of the convergecast list.
@@ -181,7 +181,7 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 		{connect, SrcMac, _, SrcFragLevel} ->
 			Neighbor = lists:keyfind(SrcMac, 1, Neighbors), % find the Neighbor entry for the source node
 			{_, SrcRssi, _} = Neighbor, % get his rssi
-			io:format("~p: Got connect message from ~p, source FragLevel ~p in function main_receive-connect ~n", [MyMac, SrcMac, SrcFragLevel]),
+			%io:format("~p: Got connect message from ~p, source FragLevel ~p in function main_receive-connect ~n", [MyMac, SrcMac, SrcFragLevel]),
 			New_Neighbors = ((Neighbors -- [Neighbor]) ++ [{SrcMac, SrcRssi, branch}]), %change the type of Acc_node to branch
 			
 			if (FragLevel == SrcFragLevel) -> % same level, according to the algorithm, this can only happen if both nodes sent connect on the same edge. 
@@ -219,7 +219,7 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 				main_receive(MyMac, New_FragID, New_FragLevel, New_Father, New_Neighbors, New_Messages, find, ConvergecastList, Acc_Mac, ConSnd, ConRcv ++ [SrcMac]);	
 			   
 			true -> % /=, probably >. different levels.
-				io:format("~p: Is on a DIFFERENT level than ~p~n", [MyMac, SrcMac]),
+				io:format("~p: Is on a DIFFERENT level than ~p ABSORBINGGGG~n", [MyMac, SrcMac]),
 				if (State == found) -> % no need for the other fragment to join the search. do nothing.
 					io:format("~p: Is in FOUND state, no need for aid in searching, main_receive-connect ~n", [MyMac]),
 					[];
@@ -237,7 +237,7 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 			io:format("~p: Sending CONNECT to ~p , main_receive-change_core ~n", [MyMac, Acc_Mac]),
 			if (Acc_Mac /= []) -> 
 				Acc_node = lists:keyfind(Acc_Mac, 1, Neighbors),
-				{_, Acc_Rssi, Type} = Acc_node,
+				{_, Acc_Rssi, _} = Acc_node,
 				global:send(Acc_Mac, {connect, MyMac, FragID, FragLevel}),
 				New_Neighbors = ((Neighbors -- [Acc_node]) ++ [{Acc_Mac, Acc_Rssi, branch}]), %change the type of Acc_node to branch
 				io:format("~p: Updating neighbors list, new list is: ~p~n", [MyMac, New_Neighbors]),
@@ -247,7 +247,7 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 					New_Father = [],
 					New_FragID = MyMac,
 					New_FragLevel = FragLevel + 1,
-					[global:send(MAC, {broadcast, MyMac, MyMac, New_FragLevel})|| {MAC, _, Type} <- (New_Neighbors ++ [{MyMac, doesnt_matter, branch}]), Type == branch], %forward to all branches
+					[global:send(MAC, {broadcast, MyMac, MyMac, New_FragLevel})|| {MAC, _, Type2} <- (New_Neighbors ++ [{MyMac, doesnt_matter, branch}]), Type2 == branch], %forward to all branches
 					New_Messages = send_accept_messages(MyMac, New_FragLevel, FragID, Messages);
 				true -> 
 					New_FragLevel = FragLevel,
@@ -298,40 +298,46 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 		%% a broadcast message is sent to update the fragID and fragLevel.
 		%% after a broadcast message is received, the convergecast process should begin.
 		{broadcast, SrcMac, SrcFragID, SrcFragLevel} ->  
-			%send accept to all test messages with fragLevel lower or equal to our new fragLevel.
-			New_Messages = send_accept_messages(MyMac, SrcFragLevel, SrcFragID, Messages),
-			io:format("~p: Received broadcast, SrcMac = ~p, SrcFragID = ~p, SrcFragLevel = ~p~n", [MyMac, SrcMac, SrcFragID, SrcFragLevel]),
-			{Min_Mac,Min_Rssi,_} = find_min_outgoing(Neighbors), %find the minimum outgoing basic edge
-			io:format("~p: Minimum outgoing edge is : ~p @ RSSI : ~p main_receive-broadcast~n", [MyMac, Min_Mac, Min_Rssi]),
-			if (Min_Rssi == -1000) -> %no basics
-				io:format("~p: Has no basics ~n", [MyMac]),
-				Branches_No = [0||{_,_,Type} <- Neighbors, Type == branch],
-				if((length(Branches_No) == 1) and (SrcMac /= MyMac)) -> %leaf
-					io:format("~p: This node is a leaf, sending CONVERGECAST to father ~n", [MyMac]),
-					global:send(SrcMac, {convergecast, {MyMac, {Min_Mac, -1000, basic}}}),
-					main_receive(MyMac, SrcFragID, SrcFragLevel, SrcMac, Neighbors, New_Messages, found, [], [], ConSnd, ConRcv);
-				true -> [] % not leaf
-				end;
-			true -> %yes basics	
-				io:format("~p: Still has basics, sending TEST to ~p ~n", [MyMac, Min_Mac]),
-				global:send(Min_Mac, {test, MyMac, SrcFragID, SrcFragLevel}) %send a test message to the min edge
-			end,
-			if (SrcMac /= MyMac) -> %not core (not self message)
-				io:format("~p: Is not core, sending BROADCAST to children, main_receive-broadcast ~n", [MyMac]),
-			%forward to all branches except the father
-				[global:send(MAC, {broadcast, MyMac, SrcFragID, SrcFragLevel}) || {MAC, _, Type} <- Neighbors, MAC /= SrcMac, Type == branch]; 
- 			true -> % yes core
-				main_receive(MyMac, SrcFragID, SrcFragLevel, [], Neighbors, New_Messages, find, [], [], ConSnd, ConRcv)
-			end,
-			%reiterate with new FragID, FragLevel, Father and empty ConvergecastList.
-			main_receive(MyMac, SrcFragID, SrcFragLevel, SrcMac, Neighbors, New_Messages, find, [], [], ConSnd, ConRcv);
 			
+			if (State == finish) -> 
+				global:send(Father, {convergecast, {MyMac, {MyMac, -1000, basic}}}),
+				main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, [], Acc_Mac, ConSnd, ConRcv);
+			true -> 
+			
+				%send accept to all test messages with fragLevel lower or equal to our new fragLevel.
+				New_Messages = send_accept_messages(MyMac, SrcFragLevel, SrcFragID, Messages),
+				io:format("~p: Received broadcast, SrcMac = ~p, SrcFragID = ~p, SrcFragLevel = ~p~n", [MyMac, SrcMac, SrcFragID, SrcFragLevel]),
+				{Min_Mac,Min_Rssi,_} = find_min_outgoing(Neighbors), %find the minimum outgoing basic edge
+				io:format("~p: Minimum outgoing edge is : ~p @ RSSI : ~p main_receive-broadcast~n", [MyMac, Min_Mac, Min_Rssi]),
+				if (Min_Rssi == -1000) -> %no basics
+					io:format("~p: Has no basics ~n", [MyMac]),
+					Branches_No = [0||{_,_,Type} <- Neighbors, Type == branch],
+					if((length(Branches_No) == 1) and (SrcMac /= MyMac)) -> %leaf
+						io:format("~p: This node is a leaf, sending CONVERGECAST to father ~n", [MyMac]),
+						global:send(SrcMac, {convergecast, {MyMac, {Min_Mac, -1000, basic}}}),
+						main_receive(MyMac, SrcFragID, SrcFragLevel, SrcMac, Neighbors, New_Messages, found, [], [], ConSnd, ConRcv);
+					true -> [] % not leaf
+					end;
+				true -> %yes basics	
+					io:format("~p: Still has basics, sending TEST to ~p ~n", [MyMac, Min_Mac]),
+					global:send(Min_Mac, {test, MyMac, SrcFragID, SrcFragLevel}) %send a test message to the min edge
+				end,
+				if (SrcMac /= MyMac) -> %not core (not self message)
+					io:format("~p: Is not core, sending BROADCAST to children, main_receive-broadcast ~n", [MyMac]),
+				%forward to all branches except the father
+					[global:send(MAC, {broadcast, MyMac, SrcFragID, SrcFragLevel}) || {MAC, _, Type} <- Neighbors, MAC /= SrcMac, Type == branch]; 
+				true -> % yes core
+					main_receive(MyMac, SrcFragID, SrcFragLevel, [], Neighbors, New_Messages, find, [], [], ConSnd, ConRcv)
+				end,
+				%reiterate with new FragID, FragLevel, Father and empty ConvergecastList.
+				main_receive(MyMac, SrcFragID, SrcFragLevel, SrcMac, Neighbors, New_Messages, find, [], [], ConSnd, ConRcv)
+			end;
 		
 		{accept, SrcMac, SentFragID, SentFragLevel} ->
 			Accept_Node = lists:keyfind(SrcMac, 1, Neighbors), %find the node that sent the message.
 			{_, _, Type} = Accept_Node,
 			if ((SentFragID == FragID) and (SentFragLevel == FragLevel) and (Type /= branch)) -> %properties are up to date
-				Num_branches = length([0 || {_, _, Type} <- Neighbors, Type == branch]), %get the amount of branches for that node (including father).
+				Num_branches = length([0 || {_, _, Type2} <- Neighbors, Type2 == branch]), %get the amount of branches for that node (including father).
 				
 				if (MyMac == FragID) -> %core
 					Num_children = Num_branches; %no father
@@ -372,8 +378,14 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 		 
 		{reject, SrcMac} ->
 				Neighbor = lists:keyfind(SrcMac, 1, Neighbors), % find the neighbor
-				{_, RSSI, _} = Neighbor, % get his rssi
-				New_Neighbors = ((Neighbors -- [Neighbor]) ++ [{SrcMac, RSSI, reject}]), % change neighbor type to reject
+				{_, RSSI, TYPE} = Neighbor, % get his rssi
+				
+				if(TYPE /= branch) ->
+					New_Neighbors = ((Neighbors -- [Neighbor]) ++ [{SrcMac, RSSI, reject}]); % change neighbor type to reject
+				true -> 
+					New_Neighbors = Neighbors
+				end,
+				
 				io:format("~p: Got REJECT from ~p, new neighbors are: ~p~n", [MyMac,SrcMac,New_Neighbors]),
 				Num_branches = length([0 || {_, _, Type} <- New_Neighbors, Type == branch]),
 				Num_basic = length([0 || {_, _, Type} <- New_Neighbors, Type == basic]),
@@ -389,7 +401,9 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 							{Candidate_Mac, {_,Candidate_Rssi,_}} = find_min_outgoing(ConvergecastList, hd(ConvergecastList)), % find minimum from the list we got from our children
 							io:format("~p: I am the core, got REJECT from ~p, sending CHANGE_CORE to ~p, main_receive-reject ~n", [MyMac, SrcMac, Candidate_Mac]),
 							if (Candidate_Rssi == -1000) -> % THIS IS THE END
-								io:format("~p: ******************************************~n (reject) No more basics! Stage 1 COMPLETE! ~n ******************************************~n", [MyMac]);
+								io:format("~p: *****************~n(reject) No more basics! Stage 1 COMPLETE!~n*************************~n", [MyMac]),
+								[global:send(MAC, {stage_two}) || MAC <- global:registered_names()],
+								stage_two(MyMac, New_Neighbors);
 							true ->
 								global:send(Candidate_Mac, {change_core}),
 								main_receive(MyMac, FragID, FragLevel, Father, New_Neighbors, Messages, found, [], Acc_Mac, ConSnd, ConRcv)
@@ -400,13 +414,15 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 					true -> % this node is not the core & no more basic edges
 						if (Num_branches == (length(ConvergecastList) + 1)) -> % no more convergecasts (we got reject from our candidate)
 							if (ConvergecastList == []) -> %leaf
-								ConvergecastRecord = {MyMac, {MyMac, -1000, basic}};
+								ConvergecastRecord = {MyMac, {MyMac, -1000, basic}},
+								New_State = finish;
 							true -> %not leaf, not core
-								ConvergecastRecord = find_min_outgoing(ConvergecastList, hd(ConvergecastList)) % we can report to father
+								ConvergecastRecord = find_min_outgoing(ConvergecastList, hd(ConvergecastList)), % we can report to father
+								New_State = State
 							end,
 							io:format("~p: Got REJECT from ~p, sending CONVERGECAST to ~p, main_receive-reject ~n", [MyMac, SrcMac, Father]),
 							global:send(Father, {convergecast, ConvergecastRecord}),
-							main_receive(MyMac, FragID, FragLevel, Father, New_Neighbors, Messages, found, [], Acc_Mac, ConSnd, ConRcv);
+							main_receive(MyMac, FragID, FragLevel, Father, New_Neighbors, Messages, New_State, [], Acc_Mac, ConSnd, ConRcv);
 						true -> % we still have more convergecasts to receive
 							main_receive(MyMac, FragID, FragLevel, Father, New_Neighbors, Messages, State, ConvergecastList, Acc_Mac, ConSnd, ConRcv)
 						end
@@ -415,14 +431,9 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 						
 					  
 		{convergecast, ConvergecastRecord} -> 
-			{SrcMac, {Candidate_Mac, Candidate_Rssi, _}} = ConvergecastRecord,
-			if (Candidate_Rssi == -1000) ->
-				Neighbor = lists:keyfind(SrcMac, 1, Neighbors), % find the neighbor
-				{_, SrcRssi, _} = Neighbor, % get his rssi
-				New_Neighbors = ((Neighbors -- [Neighbor]) ++ [{SrcMac, SrcRssi, finish}]); % change neighbor type to finish
-			true ->
-				New_Neighbors = Neighbors
-			end,
+			{SrcMac, {_, _, _}} = ConvergecastRecord,
+			
+			New_Neighbors = Neighbors,
 			Num_branches = length([0 || {_, _, Type} <- New_Neighbors, Type == branch]),
 			Num_basic = length([0 || {_, _, Type} <- New_Neighbors, Type == basic]),
 			
@@ -444,7 +455,9 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 					% find minimum in the list we got from our children
 					{Min_Mac_father, {_, Min_Rssi, _}} = find_min_outgoing(ConvergecastList ++ (if (Acc_Node /= false) -> [{MyMac, Acc_Node}]; true -> [] end), ConvergecastRecord),
 					if (Min_Rssi == -1000) -> % THIS IS THE END
-						io:format("~p: ******************************************~n (convergecast) No more basics! Stage 1 COMPLETE! ~n ******************************************~n", [MyMac]);
+						io:format("~p: ***************************~n (convergecast) No more basics! Stage 1 COMPLETE! ~n *******************~n", [MyMac]),
+						[global:send(MAC, {stage_two}) || MAC <- global:registered_names()],
+						stage_two(MyMac, New_Neighbors);
 					true -> 
 						io:format("~p: I am the core, got CONVERGECAST from ~p, sending CHANGE_CORE to ~p, main_receive-convergecast ~n", [MyMac, SrcMac, Min_Mac_father]),
 						global:send(Min_Mac_father, {change_core}),
@@ -455,16 +468,13 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 				end;
 			true -> % this node is not the core
 				if (Num_branches == (length(ConvergecastList) + 2 + Count_accept)) -> % all branches + one basic already reported
-					if (ConvergecastList == []) ->
-						ConvergecastCandidate = {MyMac, {MyMac, -1000, basic}};
-					true ->
-						ConvergecastCandidate = find_min_outgoing(ConvergecastList, ConvergecastRecord)
-					end,
+					ConvergecastCandidate = find_min_outgoing(ConvergecastList  ++ (if (Acc_Node /= false) -> [{MyMac, Acc_Node}]; true -> [] end), ConvergecastRecord),
 					io:format("~p: Got CONVERGECAST from ~p, sending CONVERGECAST to ~p, main_receive-convergecast ~n", [MyMac, SrcMac, Father]),
 					{_, {_, Rssi, _}} = ConvergecastCandidate,
 					global:send(Father, {convergecast, ConvergecastCandidate}),
 					if (Rssi == -1000) -> % THIS IS THE END
-						io:format("~p: ******************************************~n (convergecast) No more basics! Stage 1 COMPLETE! ~n ******************************************~n", [MyMac]);
+						io:format("~p: *****************~n (convergecast) No more basics! Stage 1 COMPLETE! ~n************************~n", [MyMac]),
+						main_receive(MyMac, FragID, FragLevel, Father, New_Neighbors, Messages, finish, [], Acc_Mac, ConSnd, ConRcv);
 					true ->
 						main_receive(MyMac, FragID, FragLevel, Father, New_Neighbors, Messages, found, [], Acc_Mac, ConSnd, ConRcv)
 					end;
@@ -473,6 +483,11 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 				end
 			end;
 
+			{stage_two} ->
+				stage_two(MyMac, Neighbors);
+			
+			
+			
 		%%%%%%%%%%%%%%% Debug commands %%%%%%%%%%%%%%%%%
 		{print_stats} -> 
 			io:format("MyMac: ~p~nFragID: ~p~nFragLevel: ~p~nFather: ~p~nNeighbors: ~p~nMessages: ~p~nState: ~p~nConvergecastList: ~p~nAcc_Mac: ~p~nTHANK YOU, COME AGAIN!!~n~n", 
@@ -484,6 +499,16 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 		CatchAll -> io:format("Main receive loop got unknown message ~p~n", [CatchAll])
 end.
 
+
+stage_two(MyMac, Neighbors) ->
+	receive
+		Unknown -> io:format("~p: Got message ~p~n", [MyMac, Unknown])
+	end.
+
+
+
+%%%%%%%%%%%%%%%%%%% Utility Functions %%%%%%%%%%%%%%%%%
+
 send_accept_messages(_, _, _, [], Remaining) -> 
 	Remaining;
 send_accept_messages(MyMac, FragLevel, FragID ,[H|Messages], Remaining) -> 
@@ -491,6 +516,9 @@ send_accept_messages(MyMac, FragLevel, FragID ,[H|Messages], Remaining) ->
 	if((SrcFragLevel =< FragLevel) and (SrcFragID /= FragID)) -> 
 		global:send(SrcMac, {accept, MyMac, SrcFragID, SrcFragLevel}),
 		New_Remaining = Remaining;
+	(SrcFragID == FragID) -> 
+		New_Remaining = Remaining,
+		global:send(SrcMac, {reject, MyMac});
 	true -> 
 		New_Remaining = Remaining ++ [H]
 	end,
