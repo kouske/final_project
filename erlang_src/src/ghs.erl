@@ -5,6 +5,8 @@
 
 -export([start/2]).
 
+-define(MAX_PEERS, 3).
+
 %% parameters: Neighbors = {MAC, RSSI, Type}, MyMac = MAC address
 %% 				
 start(Neighbors, MyMac) -> 
@@ -204,16 +206,18 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 					end;
 				true -> % new connect
 					if (State == found) ->
+						io:format("~p: Got NEW CONNECT from ~p State is FOUND~n",[MyMac,SrcMac]),
 						New_Father = Father,
 						New_FragID = FragID,
 						New_Messages = Messages,
 						New_FragLevel = FragLevel;
 					true ->
-						global:send(SrcMac, {broadcast, MyMac, MyMac, FragLevel}),
+						global:send(SrcMac, {broadcast, MyMac, FragID, FragLevel}),
 						New_Father = Father,
 						New_FragID = FragID,
 						New_Messages = Messages,
-						New_FragLevel = FragLevel
+						New_FragLevel = FragLevel,
+						io:format("~p: Got NEW CONNECT from ~p State is FIND~n",[MyMac,SrcMac])
 					end
 				end,
 				main_receive(MyMac, New_FragID, New_FragLevel, New_Father, New_Neighbors, New_Messages, find, ConvergecastList, Acc_Mac, ConSnd, ConRcv ++ [SrcMac]);	
@@ -363,16 +367,7 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 				end;
 			true -> %properties are outdated 
 				io:format("~p: Got outdated accept from ~p~n", [MyMac, SrcMac]),
-			%%
-			%%!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-			%%
-			%% TODO : discarding is no good. we need to check if we can still accept or to reject (and test again). 
-			%%		  doing nothing makes the process halt because there will never be another accept or revect because we did not send another test.
-			%%		note - reviewed @ 12.11.16 OK
-			%%!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-			%%
 				main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, ConvergecastList, Acc_Mac, ConSnd, ConRcv) %discard message and reiterate
-			%% TODO : reset Acc_Mac?
 			end;
 
 		 
@@ -403,7 +398,7 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 							if (Candidate_Rssi == -1000) -> % THIS IS THE END
 								io:format("~p: *****************~n(reject) No more basics! Stage 1 COMPLETE!~n*************************~n", [MyMac]),
 								[global:send(MAC, {stage_two}) || MAC <- global:registered_names()],
-								stage_two(MyMac, New_Neighbors);
+								stage_two(MyMac, New_Neighbors, FragID);
 							true ->
 								global:send(Candidate_Mac, {change_core}),
 								main_receive(MyMac, FragID, FragLevel, Father, New_Neighbors, Messages, found, [], Acc_Mac, ConSnd, ConRcv)
@@ -457,7 +452,7 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 					if (Min_Rssi == -1000) -> % THIS IS THE END
 						io:format("~p: ***************************~n (convergecast) No more basics! Stage 1 COMPLETE! ~n *******************~n", [MyMac]),
 						[global:send(MAC, {stage_two}) || MAC <- global:registered_names()],
-						stage_two(MyMac, New_Neighbors);
+						stage_two(MyMac, New_Neighbors, FragID);
 					true -> 
 						io:format("~p: I am the core, got CONVERGECAST from ~p, sending CHANGE_CORE to ~p, main_receive-convergecast ~n", [MyMac, SrcMac, Min_Mac_father]),
 						global:send(Min_Mac_father, {change_core}),
@@ -484,7 +479,7 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 			end;
 
 			{stage_two} ->
-				stage_two(MyMac, Neighbors);
+				stage_two(MyMac, Neighbors, FragID);
 			
 			
 			
@@ -500,8 +495,59 @@ main_receive(MyMac, FragID, FragLevel, Father, Neighbors, Messages, State, Conve
 end.
 
 
-stage_two(MyMac, Neighbors) ->
+stage_two(MyMac, Neighbors, CoreID) ->
+	os_dispatcher:block_auto_peering(),
+	AllVisibleNodes = os_dispatcher:scan(final_project, 2437),
+	[os_dispatcher:remove_peer(MAC) || {MAC, RSSI, Type} <- Neighbors, Type /= branch],
+	Num_Neighbors = length([0 || _ <- Neighbors, Type == branch]), %check if compiles
+	New_Neighbors = [{Mac, Rssi} || {Mac, Rssi, Type} <- Neighbors, Type == branch],
+	ha_algorithm(MyMac, FragID, [], [], AllVisibleNodes, (?MAX_PEERS - Num_Neighbors), New_Neighbors). % AllVisibleNodes should be in {MAC, RSSI} format
+	
+	
+ha_algorithm(MyMac, CoreID, BestMac, Reports, AllVisibleNodes, Resources, Neighbors) ->
+	% Neighbors here is {MAC, RSSI}
+	if (MyMac == CoreID) -> % this is the core
+		[global:send(MAC, {broadcast_S2, MyMac)} || MAC <- global:registered_names()]; 
+	true -> []
+	end,
+		
 	receive
+		{broadcast_S2, SrcMac} -> 
+			if ((Resources /= 0) and (length(AllVisibleNodes) > length(Neighbors))) -> % we still have room for more nodes
+				% calculate metric on graph
+				% calculate mertic for direct connection
+				% calculate difference metric
+				global:send(SrcMac, {report, Metric, MyMac}, % send best to core
+				ha_algorithm(MyMac, CoreID, BestMac, [], AllVisibleNodes, Resources, Neighbors); % save best
+			true -> 
+				global:send(SrcMac, {report, finish, MyMac), % send NO_BASIC to core
+				ha_algorithm(MyMac, CoreID, [], [], AllVisibleNodes, Resources, Neighbors)
+			end;
+			
+			
+		{connect_S2} -> 
+			os_dispatcher:add_peer(BestMac), % connect to the best
+			ha_algorithm(MyMac, MyMac, [], [], AllVisibleNodes, Resources - 1, Neighbors ++ [BestMac]); % change fragid to mymac
+			
+		
+		{report, Metric, SrcMac} ->
+			if (MyMac == CoreID) -> 
+				if ((length(Reports) + 1) == length(registered_nodes())) -> %all reports arrived
+					Best_Candidate = find_min_metric(Reports),
+					if (Best_Candidate == finish) -> % no node has an edge to add
+						io:format("Algorithm DONE ~n"),
+						[global:send(MAC, terminate) || MAC <- global:registered_names()];
+					true -> % there are more potential edges
+						% calc min report
+						% send connect to min mac father
+						% min mac father is now the new core
+				true -> % not all reports arrived
+					ha_algorithm(MyMac, CoreID, BestMac, Reports ++ [{SrcMac, Metric}], AllVisibleNodes, Resources, Neighbors) % save report
+				end;
+			true -> % not core
+				io:format("~p: Got REPORT and not core... ~n")
+			end;	
+			
 		Unknown -> io:format("~p: Got message ~p~n", [MyMac, Unknown])
 	end.
 
@@ -526,3 +572,21 @@ send_accept_messages(MyMac, FragLevel, FragID ,[H|Messages], Remaining) ->
 
 send_accept_messages(MyMac, FragLevel, FragID, Messages) -> 
 	send_accept_messages(MyMac, FragLevel, FragID, Messages, []).
+	
+
+find_min_metric([H|Reports]) -> % welcome function
+	find_min_reports(Reports, length(Reports), H). % real function
+	
+find_min_metric([], 0, Min) -> % final condition
+	Min;
+find_min_metric([H|Reports], ReportsLeft, {MinMetric, MinRssi}) -> 
+	{Metric, Rssi} = H, 
+	if (Metric < MinMetric) -> 
+		New_MinMetric = Metric,
+		New_MinRssi = Rssi;
+	true -> 
+		New_MinMetric = MinMetric,
+		New_MinRssi = MinRssi
+	end,
+	
+	find_min_metric(Reports, ReportsLeft-1, {New_MinMetric, New_MinRssi}).

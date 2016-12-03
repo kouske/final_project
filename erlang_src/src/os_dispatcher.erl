@@ -35,7 +35,7 @@ get_all_nodes() ->
 	list_pairs(Y).
 	
 
-block_connection() ->
+block_auto_peering() ->
 	os:cmd("wpa_cli -i mesh0 set_network 0 no_auto_peer 1").
 
 
@@ -50,7 +50,7 @@ remove_peer(MAC) ->
 scan(Network_Name, Channel) ->
 	os:cmd("wpa_cli -i mesh0 scan"),
 	WPA_Results = string:tokens(os:cmd("wpa_cli -i mesh0 scan_r | grep MESH | grep " ++ Network_Name ++ " | grep " ++ Channel), "\n\t "),
-	[{X} || X <- WPA_Results, X /= "[MESH]", X /= Channel, X/= Network_Name].
+	[{X} || X <- WPA_Results, X /= "[MESH]", X /= Channel, X /= Network_Name].
 
 % returns a string
 get_self_mac() ->
