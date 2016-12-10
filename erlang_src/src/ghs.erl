@@ -6,6 +6,8 @@
 -export([start/2]).
 
 -define(MAX_PEERS, 3).
+-define(NETWORK_NAME, final_project).
+-define(CHANNEL, 2437).
 
 %% parameters: Neighbors = {MAC, RSSI, Type}, MyMac = MAC address
 %% 				
@@ -497,17 +499,17 @@ end.
 
 stage_two(MyMac, Neighbors, CoreID) ->
 	os_dispatcher:block_auto_peering(),
-	AllVisibleNodes = os_dispatcher:scan(final_project, 2437),
-	[os_dispatcher:remove_peer(MAC) || {MAC, RSSI, Type} <- Neighbors, Type /= branch],
-	Num_Neighbors = length([0 || _ <- Neighbors, Type == branch]), %check if compiles
+	AllVisibleNodes = os_dispatcher:scan(?NETWORK_NAME, ?CHANNEL),
+	[os_dispatcher:remove_peer(MAC) || {MAC, _, Type} <- Neighbors, Type /= branch],
+	Num_Neighbors = length([0 || {_, _, Type} <- Neighbors, Type == branch]), %check if compiles
 	New_Neighbors = [{Mac, Rssi} || {Mac, Rssi, Type} <- Neighbors, Type == branch],
-	ha_algorithm(MyMac, FragID, [], [], AllVisibleNodes, (?MAX_PEERS - Num_Neighbors), New_Neighbors). % AllVisibleNodes should be in {MAC, RSSI} format
+	ha_algorithm(MyMac, CoreID, [], [], AllVisibleNodes, (?MAX_PEERS - Num_Neighbors), New_Neighbors). % AllVisibleNodes should be in {MAC, Metric} format
 	
 	
 ha_algorithm(MyMac, CoreID, BestMac, Reports, AllVisibleNodes, Resources, Neighbors) ->
 	% Neighbors here is {MAC, RSSI}
 	if (MyMac == CoreID) -> % this is the core
-		[global:send(MAC, {broadcast_S2, MyMac)} || MAC <- global:registered_names()]; 
+		[global:send(MAC, {broadcast_S2, MyMac}) || MAC <- global:registered_names()]; 
 	true -> []
 	end,
 		
@@ -515,12 +517,12 @@ ha_algorithm(MyMac, CoreID, BestMac, Reports, AllVisibleNodes, Resources, Neighb
 		{broadcast_S2, SrcMac} -> 
 			if ((Resources /= 0) and (length(AllVisibleNodes) > length(Neighbors))) -> % we still have room for more nodes
 				% calculate metric on graph
-				% calculate mertic for direct connection
-				% calculate difference metric
-				global:send(SrcMac, {report, Metric, MyMac}, % send best to core
+				UnDirectCandidates = [os_dispatcher:send_probe(MAC) || {MAC, _} <- AllVisibleNodes], %send_probe should return a sorted list of {MAC, Metric}
+				{BestMac, Metric} = find_min_metric([{MAC, DirectMetric - UnDirectMetric} || {MAC, DirectMetric} <- AllVisibleNodes, {_, UnDirectMetric} <- UnDirectCandidates]),
+				global:send(SrcMac, {report, Metric, MyMac}), % send best to core
 				ha_algorithm(MyMac, CoreID, BestMac, [], AllVisibleNodes, Resources, Neighbors); % save best
 			true -> 
-				global:send(SrcMac, {report, finish, MyMac), % send NO_BASIC to core
+				global:send(SrcMac, {report, finish, MyMac}), % send NO_BASIC to core
 				ha_algorithm(MyMac, CoreID, [], [], AllVisibleNodes, Resources, Neighbors)
 			end;
 			
@@ -532,22 +534,25 @@ ha_algorithm(MyMac, CoreID, BestMac, Reports, AllVisibleNodes, Resources, Neighb
 		
 		{report, Metric, SrcMac} ->
 			if (MyMac == CoreID) -> 
-				if ((length(Reports) + 1) == length(registered_nodes())) -> %all reports arrived
-					Best_Candidate = find_min_metric(Reports),
-					if (Best_Candidate == finish) -> % no node has an edge to add
+				Num_Nodes = global:registered_nodes(),
+				if ((length(Reports) + 1) == Num_Nodes) -> %all reports arrived
+					{BestMac, BestMetric} = find_min_metric(Reports ++ [{SrcMac, Metric}]),
+					if (BestMetric == finish) -> % no node has an edge to add
 						io:format("Algorithm DONE ~n"),
 						[global:send(MAC, terminate) || MAC <- global:registered_names()];
 					true -> % there are more potential edges
-						% calc min report
-						% send connect to min mac father
-						% min mac father is now the new core
+						global:send(BestMac, {connect_S2}),
+						ha_algorithm(MyMac, BestMac, [], [], AllVisibleNodes, Resources, Neighbors)
+					end;
 				true -> % not all reports arrived
 					ha_algorithm(MyMac, CoreID, BestMac, Reports ++ [{SrcMac, Metric}], AllVisibleNodes, Resources, Neighbors) % save report
 				end;
 			true -> % not core
-				io:format("~p: Got REPORT and not core... ~n")
+				io:format("~p: Got REPORT and not core... ~n", [MyMac])
 			end;	
 			
+		{terminate} -> io:format("Bye bye");
+		
 		Unknown -> io:format("~p: Got message ~p~n", [MyMac, Unknown])
 	end.
 
@@ -575,18 +580,16 @@ send_accept_messages(MyMac, FragLevel, FragID, Messages) ->
 	
 
 find_min_metric([H|Reports]) -> % welcome function
-	find_min_reports(Reports, length(Reports), H). % real function
+	find_min_metric(Reports, length(Reports), H). % real function
 	
 find_min_metric([], 0, Min) -> % final condition
 	Min;
-find_min_metric([H|Reports], ReportsLeft, {MinMetric, MinRssi}) -> 
-	{Metric, Rssi} = H, 
+find_min_metric([H|Reports], ReportsLeft, {MinMetric, Mac}) -> 
+	{Mac, Metric} = H, 
 	if (Metric < MinMetric) -> 
-		New_MinMetric = Metric,
-		New_MinRssi = Rssi;
+		New_MinMetric = Metric;
 	true -> 
-		New_MinMetric = MinMetric,
-		New_MinRssi = MinRssi
+		New_MinMetric = MinMetric
 	end,
 	
-	find_min_metric(Reports, ReportsLeft-1, {New_MinMetric, New_MinRssi}).
+	find_min_metric(Reports, ReportsLeft-1, {New_MinMetric, Mac}).
