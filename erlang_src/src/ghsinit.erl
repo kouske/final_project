@@ -91,7 +91,7 @@ init() ->
 	timer:sleep(5000),
 	io:format("Registered names are: ~p~n",[global:registered_names()]),
 	timer:sleep(5000),
-	ghs:start(Neighbors, MyMac).
+	ghs:start(Neighbors, list_to_atom(MyMac)).
 	
 	
 
