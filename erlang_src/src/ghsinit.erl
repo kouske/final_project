@@ -69,11 +69,10 @@ init_debug() ->
 	timer:sleep(5000),
 	ghs:start(Neighbors, MyMac).
 
-init() ->
+init(Neighbors_IP) -> %list of strings, 
 	MyMac = os_dispatcher:get_self_mac(),
 	MyIP = os_dispatcher:get_self_ip(),
 	Neighbors = os_dispatcher:get_neighbors(),
-	Neighbors_IP = [{"7cec79c842b5","10.20.30.44"}, {"7cec79c80147", "10.20.30.43"}, {"7cec79c9dbf4","10.20.30.42"},{"689e19049082", "10.20.30.41"}],
 	
 	% start the node
 	net_kernel:start([list_to_atom(MyMac ++ "@" ++ MyIP), longnames]),

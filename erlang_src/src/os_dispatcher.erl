@@ -25,14 +25,14 @@ get_neighbors() ->
 
 %% parameters: the first field of an ip address
 %% returns a list of tuples {MAC, IP}
-get_all_nodes() ->
+get_all_nodes(MAC_LIST) ->
 	IP = os_dispatcher:get_self_ip(),
 	{ok, {SubNet, _, _, _}} = inet:parse_address(IP),
 	os:cmd("sysctl net.ipv4.icmp_echo_ignore_broadcasts=0"),
 	os:cmd("ping " ++ integer_to_list(SubNet) ++ ".255.255.255 -c 1"),
 	os:cmd("sysctl net.ipv4.icmp_echo_ignore_broadcasts=1"),
-	Y = [[Z || Z <- X, Z /= $:] || X <- string:tokens(os:cmd("arp"), "\n\t() "), X /= "?", X /= "at", X /= "[ether]", X /= "on",X /= "mesh0"],
-	list_pairs(Y).
+	[{MAC,IP} || MAC <- MAC_LIST, IP <- os:cmd("/usr/sbin/arp -n | grep" ++ string:substr(atom_to_list(MAC),1,2) ++ "| awk '{print $1}'")].
+
 	
 
 block_auto_peering() ->
