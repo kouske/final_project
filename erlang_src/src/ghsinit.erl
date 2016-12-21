@@ -78,12 +78,19 @@ init() ->
 	% start the node
 	net_kernel:start([list_to_atom(MyMac ++ "@" ++ MyIP), longnames]),
 	erlang:set_cookie(node(), final_project),
-	
+	timer:sleep(1000),
+
 	%connect to all one hop neighbors
 	[net_kernel:connect_node(list_to_atom(MAC ++ "@" ++ IP)) || {MAC, IP} <- Neighbors_IP], 
 	
+	timer:sleep(5000),
+	
 	global:register_name(list_to_atom(MyMac), erlang:self()),
-		
+	global:sync(),
+	io:format("Sleeping some more ~n"),
+	timer:sleep(5000),
+	io:format("Registered names are: ~p~n",[global:registered_names()]),
+	timer:sleep(5000),
 	ghs:start(Neighbors, MyMac).
 	
 	
