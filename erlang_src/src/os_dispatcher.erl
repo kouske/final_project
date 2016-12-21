@@ -8,7 +8,7 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([get_neighbors/0, scan/2, add_peer/1, remove_peer/1, block_connection/0, get_self_mac/0, get_all_nodes/0, get_self_ip/0]).
+-export([get_neighbors/0, scan/2, add_peer/1, remove_peer/1, block_auto_peering/0, get_self_mac/0, get_all_nodes/0, get_self_ip/0]).
 
 
 %% ====================================================================
@@ -20,7 +20,7 @@ get_neighbors() ->
 	Signal = [list_to_atom(X) || X <- string:tokens(os:cmd("iw dev mesh0 station dump | grep 'signal avg'"), "\n\t "), X /= "signal" , X /= "avg:", X /= "dBm"],
 	MAC = [list_to_atom(string:join(string:tokens(Y, ":"),"")) ||
                        Y <- string:tokens(os:cmd("iw dev mesh0 station dump | grep Station"), "\n\t "), Y /= "Station" , Y /= "(on", Y/= "mesh0)"],
-	lists:zip3(MAC, Signal, [basic]).
+	lists:zip3(MAC, Signal, [basic || X <- MAC]).
 
 
 %% parameters: the first field of an ip address

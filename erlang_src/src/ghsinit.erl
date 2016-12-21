@@ -83,9 +83,7 @@ init() ->
 	[net_kernel:connect_node(list_to_atom(MAC ++ "@" ++ IP)) || {MAC, IP} <- Neighbors_IP, lists:keyfind(MAC, 1, Neighbors) /= false], 
 	
 	global:register_name(list_to_atom(MyMac), erlang:self()),
-	
-	% TODO: connect function here
-	
+		
 	ghs:start(Neighbors, MyMac).
 	
 	
